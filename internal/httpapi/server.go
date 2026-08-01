@@ -131,6 +131,9 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/auth/login", s.handleMemberLogin)
 	m.HandleFunc("POST /api/auth/logout", s.handleMemberLogout)
 
+	// Hidden staff entrance. Credentials decide which dashboard to open.
+	m.HandleFunc("POST /api/auth/staff", s.handleStaffGate)
+
 	// Member API
 	m.HandleFunc("GET /api/member/me", s.requireMember(s.handleMemberMe))
 	m.HandleFunc("GET /api/member/ballot", s.requireMember(s.handleBallotForm))

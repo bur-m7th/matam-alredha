@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"matam-alredha/internal/auth"
 	"matam-alredha/internal/store"
 )
 
@@ -489,3 +490,57 @@ var errBadInt = errString("invalid integer")
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// ---------------------------------------------------------------- staff gate
+
+// handleStaffGate is the entry point behind the hidden trigger on the public
+// pages. The operator supplies only a username and password; the server works
+// out which dashboard the account belongs to, opens the session, and returns
+// the address to go to. That way the secret paths never appear in any page
+// source, and neither operator has to remember a URL.
+//
+// A wrong username, a wrong password, and a nonexistent account all produce the
+// same message, so nothing here reveals whether an account exists.
+func (s *Server) handleStaffGate(w http.ResponseWriter, r *http.Request) {
+	if !s.checkOrigin(w, r) {
+		return
+	}
+	if !s.limiter.allow("gate:"+clientIP(r), 8, 15*time.Minute) {
+		fail(w, http.StatusTooManyRequests, "عدد محاولات الدخول تجاوز الحد. الرجاء المحاولة بعد قليل")
+		return
+	}
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	candidates := []struct {
+		kind, cookie, subject, path string
+	}{
+		{store.KindMembership, cookieAdminMember, subjectAdminMem, s.cfg.AdminPath},
+		{store.KindElections, cookieAdminElection, subjectAdminElec, s.cfg.ElectionsPath},
+	}
+	for _, c := range candidates {
+		a, hash, err := s.st.AdminByUsername(req.Username, c.kind)
+		if err != nil || !auth.VerifyPassword(hash, req.Password) {
+			continue
+		}
+		token, expires, err := s.st.CreateSession(c.subject, a.ID)
+		if err != nil {
+			fail(w, http.StatusInternalServerError, "تعذر إنشاء الجلسة")
+			return
+		}
+		s.setSessionCookie(w, c.cookie, token, expires)
+		s.st.Audit(a.Username, "login", c.kind+" (بوابة)")
+		ok(w, map[string]any{
+			"redirect":     "/" + c.path,
+			"display_name": a.DisplayName,
+		})
+		return
+	}
+	fail(w, http.StatusUnauthorized, "اسم المستخدم أو كلمة المرور غير صحيحة")
+}

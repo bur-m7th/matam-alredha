@@ -641,3 +641,35 @@ hr.rule { border: none; border-top: 1px solid var(--sand); margin: 1.5rem 0; }
   margin-inline-start: 0.35rem;
   color: var(--pine);
 }
+
+
+/* ---- staff entrance ----
+   Deliberately unobtrusive: a small diamond in the footer that reads as part of
+   the ornament. No label, no pointer cursor, skipped by keyboard tabbing. */
+.crest {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 0.9rem auto 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+  opacity: 0.5;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.crest::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: 4px auto;
+  background: var(--brass);
+  transform: rotate(45deg);
+  opacity: 0.55;
+}
+
+.crest:focus { outline: none; }

@@ -190,6 +190,7 @@ export async function paintChrome() {
           })
         : null
     );
+    installStaffGate();
   }
   const bar = $("[data-topbar]");
   if (bar) {
@@ -225,4 +226,105 @@ export function confirmAction(message, confirmLabel = "تأكيد", danger = tru
     document.body.append(dialog);
     dialog.showModal();
   });
+}
+
+/* ------------------------------------------------------------ staff gate */
+
+// A discreet way in for the two operators. There is no visible link anywhere:
+// the trigger is the small crest in the footer. Press and hold it for a moment
+// on a phone, or click it five times quickly on a computer.
+//
+// The dashboard addresses are never written into any page. The server works out
+// which dashboard the credentials belong to and sends back where to go, so a
+// visitor who finds the trigger sees nothing but a login box.
+export function installStaffGate() {
+  const target = document.querySelector("[data-footer]");
+  if (!target) return;
+
+  const crest = el("button", {
+    type: "button",
+    class: "crest",
+    "aria-label": "",
+    tabindex: "-1",
+    title: "",
+  });
+  target.append(crest);
+
+  let clicks = 0;
+  let clickTimer = null;
+  let holdTimer = null;
+
+  const openGate = () => {
+    clicks = 0;
+    staffDialog();
+  };
+
+  crest.addEventListener("click", (event) => {
+    event.preventDefault();
+    clicks += 1;
+    clearTimeout(clickTimer);
+    if (clicks >= 5) { openGate(); return; }
+    clickTimer = setTimeout(() => { clicks = 0; }, 1200);
+  });
+
+  const startHold = () => { holdTimer = setTimeout(openGate, 900); };
+  const cancelHold = () => { clearTimeout(holdTimer); };
+  crest.addEventListener("pointerdown", startHold);
+  ["pointerup", "pointerleave", "pointercancel"].forEach((e) =>
+    crest.addEventListener(e, cancelHold));
+  crest.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+function staffDialog() {
+  if (document.getElementById("staffGate")) return;
+
+  const user = el("input", { id: "gateUser", type: "text", dir: "ltr", autocomplete: "username" });
+  const pass = el("input", { id: "gatePass", type: "password", autocomplete: "current-password" });
+  const notice = el("div", { class: "notice notice--error", hidden: true });
+  const submit = el("button", { class: "btn", type: "button" }, "دخول");
+
+  const dialog = el("dialog", { id: "staffGate" },
+    el("div", { class: "dialog__head", text: "دخول الإدارة" }),
+    el("div", { class: "dialog__body" },
+      notice,
+      el("div", { class: "field" },
+        el("label", { class: "label", for: "gateUser", text: "اسم المستخدم" }), user),
+      el("div", { class: "field" },
+        el("label", { class: "label", for: "gatePass", text: "كلمة المرور" }), pass)
+    ),
+    el("div", { class: "dialog__foot" },
+      el("button", {
+        class: "btn btn--ghost", type: "button",
+        onclick: () => { dialog.close(); dialog.remove(); },
+      }, "إلغاء"),
+      submit
+    )
+  );
+
+  const go = async () => {
+    notice.hidden = true;
+    busy(submit, true, "جارٍ التحقق");
+    try {
+      const res = await api("/api/auth/staff", {
+        method: "POST",
+        body: { username: user.value, password: pass.value },
+      });
+      // The server decided which dashboard these credentials belong to.
+      location.href = res.redirect;
+    } catch (err) {
+      notice.textContent = err.message;
+      notice.hidden = false;
+      busy(submit, false);
+      pass.value = "";
+      pass.focus();
+    }
+  };
+
+  submit.addEventListener("click", go);
+  [user, pass].forEach((input) =>
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); }));
+
+  document.body.append(dialog);
+  dialog.showModal();
+  user.focus();
 }
