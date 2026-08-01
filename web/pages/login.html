@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تسجيل الدخول - الجمعية العمومية</title>
+<meta name="description" content="بوابة أعضاء الجمعية العمومية لمأتم الرضا عليه السلام - المالكية">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<a class="skip-link" href="#main">تخطي إلى المحتوى</a>
+<div class="topbar" data-topbar hidden></div>
+
+<header class="masthead">
+  <div class="masthead__inner">
+    <div>
+      <h1 class="masthead__org" data-org-name>مأتم الرضا عليه السلام - المالكية</h1>
+      <p class="masthead__tag">بوابة الجمعية العمومية</p>
+    </div>
+  </div>
+</header>
+<div class="band band--onDark" aria-hidden="true"></div>
+
+<main id="main" class="narrow">
+  <div class="card">
+    <h2>تسجيل الدخول</h2>
+    <p class="lede">الدخول يتم ببيانات العضوية نفسها: رقم التواصل وتاريخ الميلاد والرقم الشخصي.</p>
+
+    <div class="notice notice--error" id="loginNotice" hidden></div>
+
+    <form id="loginForm" novalidate>
+      <div class="field" data-field="phone">
+        <label class="label" for="phone">رقم التواصل <span class="req">*</span></label>
+        <input id="phone" name="phone" type="tel" autocomplete="tel" required>
+        <p class="help">ثمانية أرقام بدون رمز الدولة</p>
+        <p class="field-error"></p>
+      </div>
+
+      <div class="field" data-field="dob">
+        <label class="label" for="dob">تاريخ الميلاد <span class="req">*</span></label>
+        <input id="dob" name="dob" type="date" required>
+        <p class="field-error"></p>
+      </div>
+
+      <div class="field" data-field="cpr">
+        <label class="label" for="cpr">الرقم الشخصي <span class="req">*</span></label>
+        <input id="cpr" name="cpr" type="text" autocomplete="off" required>
+        <p class="help">تسعة أرقام كما في البطاقة الذكية</p>
+        <p class="field-error"></p>
+      </div>
+
+      <button class="btn btn--block" type="submit" id="loginBtn">دخول</button>
+    </form>
+
+    <hr class="rule">
+
+    <div class="stack">
+      <h3>لست عضواً بعد؟</h3>
+      <p class="help" id="registerHint">يمكنك تقديم طلب العضوية بالجمعية العمومية عبر الاستمارة.</p>
+      <a class="btn btn--ghost btn--block" href="/register" id="registerLink">تقديم طلب عضوية جديد</a>
+    </div>
+  </div>
+</main>
+
+<div class="band" aria-hidden="true"></div>
+<footer data-footer></footer>
+<script type="module" src="/static/login.js"></script>
+</body>
+</html>

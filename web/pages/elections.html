@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>لوحة لجنة الانتخابات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<a class="skip-link" href="#main">تخطي إلى المحتوى</a>
+
+<header class="masthead">
+  <div class="masthead__inner">
+    <div>
+      <h1 class="masthead__org" data-org-name>مأتم الرضا عليه السلام - المالكية</h1>
+      <p class="masthead__tag">لوحة لجنة الانتخابات</p>
+    </div>
+    <span class="masthead__spacer"></span>
+    <div class="masthead__actions" id="adminActions" hidden>
+      <button class="btn btn--light btn--sm" type="button" id="passwordBtn">تغيير كلمة المرور</button>
+      <button class="btn btn--light btn--sm" type="button" id="logoutBtn">تسجيل الخروج</button>
+    </div>
+  </div>
+</header>
+<div class="band band--onDark" aria-hidden="true"></div>
+
+<main id="main">
+  <div id="loginGate" hidden style="max-width:26rem;margin-inline:auto">
+    <div class="card">
+      <h2>دخول لجنة الانتخابات</h2>
+      <p class="lede">هذه اللوحة مخصصة لإدارة التصويت والمرشحين والنتائج.</p>
+      <div class="notice notice--error" id="loginNotice" hidden></div>
+      <form id="loginForm" novalidate>
+        <div class="field" data-field="username">
+          <label class="label" for="username">اسم المستخدم</label>
+          <input id="username" type="text" autocomplete="username" dir="ltr" required>
+          <p class="field-error"></p>
+        </div>
+        <div class="field" data-field="password">
+          <label class="label" for="password">كلمة المرور</label>
+          <input id="password" type="password" autocomplete="current-password" required>
+          <p class="field-error"></p>
+        </div>
+        <button class="btn btn--block" type="submit" id="loginBtn">دخول</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="dashboard" hidden>
+    <div class="stats" id="stats"></div>
+    <div class="notice" id="statusNotice"></div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="setup" aria-selected="true">إعداد التصويت</button>
+      <button class="tab" role="tab" data-tab="candidates" aria-selected="false">المرشحون</button>
+      <button class="tab" role="tab" data-tab="results" aria-selected="false">النتائج</button>
+    </div>
+
+    <section class="panel" data-panel="setup">
+      <div class="card">
+        <h2>حالة التصويت</h2>
+        <p class="lede">التصويت لا يظهر للأعضاء إلا بعد الإعلان عنه من هذه الصفحة.</p>
+        <div class="btn-row">
+          <button class="btn btn--ghost" type="button" data-status="draft">إيقاف الإعلان</button>
+          <button class="btn" type="button" data-status="open">فتح التصويت وإعلانه</button>
+          <button class="btn btn--danger" type="button" data-status="closed">إغلاق التصويت</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>نظام التصويت</h2>
+        <form id="settingsForm" novalidate>
+          <div class="field">
+            <span class="label">طريقة عرض المرشحين</span>
+            <div class="choice">
+              <input type="radio" name="mode" id="modeRoles" value="roles">
+              <label for="modeRoles">حسب المناصب</label>
+              <input type="radio" name="mode" id="modeSingle" value="single">
+              <label for="modeSingle">قائمة واحدة</label>
+            </div>
+            <p class="help">
+              حسب المناصب: لكل منصب صفحة مستقلة، ويتنافس فيه مرشحوه وحدهم.
+              قائمة واحدة: جميع المرشحين في صفحة واحدة.
+            </p>
+          </div>
+
+          <div class="field" data-field="title">
+            <label class="label" for="vTitle">عنوان التصويت</label>
+            <input id="vTitle" type="text" required>
+            <p class="field-error"></p>
+          </div>
+
+          <div class="field" data-field="announcement">
+            <label class="label" for="vAnnounce">نص الإعلان للأعضاء</label>
+            <textarea id="vAnnounce" rows="3"></textarea>
+            <p class="help">يظهر للعضو في صفحته وفي ورقة التصويت.</p>
+          </div>
+
+          <div class="field" data-field="closed_message">
+            <label class="label" for="vClosed">الرسالة بعد إغلاق التصويت</label>
+            <textarea id="vClosed" rows="2"></textarea>
+          </div>
+
+          <div id="singleSettings" class="grid-2" hidden>
+            <div class="field">
+              <label class="label" for="vWinners">عدد الفائزين</label>
+              <input id="vWinners" type="number" min="1" value="1">
+            </div>
+            <div class="field">
+              <label class="label" for="vSelections">عدد الاختيارات المسموحة للعضو</label>
+              <input id="vSelections" type="number" min="1" value="1">
+            </div>
+          </div>
+
+          <div class="btn-row btn-row--end">
+            <button class="btn" type="submit" id="settingsSave">حفظ الإعدادات</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card" id="rolesCard">
+        <div class="section-title" style="margin-top:0"><h2>المناصب</h2></div>
+        <p class="help" style="margin-bottom:1rem">لكل منصب عدد فائزين مستقل، ويمكن السماح للعضو باختيار أكثر من مرشح فيه.</p>
+        <div id="rolesList"></div>
+        <div class="btn-row btn-row--end" style="margin-top:1rem">
+          <button class="btn btn--ghost" type="button" id="addRoleBtn">إضافة منصب</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="candidates" hidden>
+      <div class="toolbar">
+        <button class="btn" type="button" id="addCandidateBtn">إضافة مرشح</button>
+      </div>
+      <div id="candidatesList"></div>
+    </section>
+
+    <section class="panel" data-panel="results" hidden>
+      <div class="notice notice--info">
+        عدد الأصوات والنسب لا تظهر لأي جهة أخرى، ولا تُرسل إلى صفحات الأعضاء إطلاقاً.
+      </div>
+      <div id="resultsList"></div>
+      <div class="card">
+        <h2>مسح الأصوات</h2>
+        <p class="lede">يُستخدم لإعادة إجراء التصويت بعد تصحيح الإعداد. يجب إغلاق التصويت أولاً.</p>
+        <button class="btn btn--danger" type="button" id="resetBtn">مسح جميع الأصوات</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="band" aria-hidden="true"></div>
+<footer data-footer></footer>
+<script type="module" src="/static/elections.js"></script>
+</body>
+</html>

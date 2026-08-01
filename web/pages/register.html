@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>استمارة طلب العضوية بالجمعية العمومية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<a class="skip-link" href="#main">تخطي إلى المحتوى</a>
+<div class="topbar" data-topbar hidden></div>
+
+<header class="masthead">
+  <div class="masthead__inner">
+    <div>
+      <h1 class="masthead__org" data-org-name>مأتم الرضا عليه السلام - المالكية</h1>
+      <p class="masthead__tag">الجمعية العمومية</p>
+    </div>
+    <span class="masthead__spacer"></span>
+    <div class="masthead__actions">
+      <a class="btn btn--light btn--sm" href="/">لدي عضوية - تسجيل الدخول</a>
+    </div>
+  </div>
+</header>
+<div class="band band--onDark" aria-hidden="true"></div>
+
+<main id="main" class="narrow">
+  <div id="closedState" hidden>
+    <div class="card">
+      <h2>التسجيل مغلق</h2>
+      <p class="lede" id="closedMessage"></p>
+      <a class="btn btn--ghost" href="/">العودة إلى صفحة الدخول</a>
+    </div>
+  </div>
+
+  <form id="regForm" novalidate hidden>
+    <div class="card">
+      <h1 id="formTitle"></h1>
+      <p class="lede" id="formIntro"></p>
+      <div class="band" aria-hidden="true" style="margin-bottom:1.5rem"></div>
+      <div id="fields"></div>
+    </div>
+
+    <div class="card">
+      <h2>شروط العضوية</h2>
+      <div class="terms" id="terms" tabindex="0"></div>
+
+      <div class="field" data-field="agree" style="margin-top:1.25rem">
+        <div class="checkline">
+          <input type="checkbox" id="agree" required>
+          <label for="agree" id="agreeText"></label>
+        </div>
+        <p class="field-error"></p>
+      </div>
+
+      <button class="btn btn--block" type="submit" id="submitBtn" style="margin-top:1.25rem">إرسال طلب العضوية</button>
+    </div>
+  </form>
+
+  <div class="card" id="loadingState">
+    <p class="empty">جارٍ تحميل الاستمارة</p>
+  </div>
+</main>
+
+<div class="band" aria-hidden="true"></div>
+<footer data-footer></footer>
+<script type="module" src="/static/register.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بوابة العضو - الجمعية العمومية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<a class="skip-link" href="#main">تخطي إلى المحتوى</a>
+
+<header class="masthead">
+  <div class="masthead__inner">
+    <div>
+      <h1 class="masthead__org" data-org-name>مأتم الرضا عليه السلام - المالكية</h1>
+      <p class="masthead__tag" id="memberName"></p>
+    </div>
+    <span class="masthead__spacer"></span>
+    <div class="masthead__actions">
+      <button class="btn btn--light btn--sm" type="button" id="logoutBtn">تسجيل الخروج</button>
+    </div>
+  </div>
+</header>
+<div class="band band--onDark" aria-hidden="true"></div>
+
+<main id="main" class="narrow">
+  <div id="content">
+    <div class="card"><p class="empty">جارٍ التحميل</p></div>
+  </div>
+</main>
+
+<div class="band" aria-hidden="true"></div>
+<footer data-footer></footer>
+<script type="module" src="/static/member.js"></script>
+</body>
+</html>

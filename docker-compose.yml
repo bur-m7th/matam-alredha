@@ -1,0 +1,48 @@
+services:
+  matam:
+    build: .
+    image: matam-alredha:latest
+    container_name: matam-alredha
+    restart: unless-stopped
+
+    # Bound to the loopback interface on purpose. Put a reverse proxy in front
+    # to terminate TLS; the session cookies are marked Secure and will not be
+    # sent over plain HTTP once COOKIE_SECURE is true.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    environment:
+      DATA_DIR: /data
+      LISTEN_ADDR: ":8080"
+      TZ: Asia/Bahrain
+
+      # Set to "false" only while testing over plain http://localhost.
+      COOKIE_SECURE: "true"
+
+      # First boot only. Both accounts are created once and then ignored;
+      # change the passwords from inside each dashboard afterwards.
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}"
+      ELECTIONS_USERNAME: "${ELECTIONS_USERNAME:-elections}"
+      ELECTIONS_PASSWORD: "${ELECTIONS_PASSWORD:?set ELECTIONS_PASSWORD in .env}"
+
+      MAX_UPLOAD_MB: "5"
+      REGISTER_LIMIT_PER_HOUR: "40"
+
+    volumes:
+      # Holds the database, the candidate photos and the exported workbook.
+      # Back this up; everything else in the image is disposable.
+      - matam-data:/data
+
+    healthcheck:
+      test: ["CMD", "/app/matam", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  matam-data:

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>لوحة إدارة العضوية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<a class="skip-link" href="#main">تخطي إلى المحتوى</a>
+
+<header class="masthead">
+  <div class="masthead__inner">
+    <div>
+      <h1 class="masthead__org" data-org-name>مأتم الرضا عليه السلام - المالكية</h1>
+      <p class="masthead__tag">لوحة إدارة العضوية</p>
+    </div>
+    <span class="masthead__spacer"></span>
+    <div class="masthead__actions" id="adminActions" hidden>
+      <button class="btn btn--light btn--sm" type="button" id="passwordBtn">تغيير كلمة المرور</button>
+      <button class="btn btn--light btn--sm" type="button" id="logoutBtn">تسجيل الخروج</button>
+    </div>
+  </div>
+</header>
+<div class="band band--onDark" aria-hidden="true"></div>
+
+<main id="main">
+  <!-- login gate -->
+  <div id="loginGate" hidden style="max-width:26rem;margin-inline:auto">
+    <div class="card">
+      <h2>دخول إدارة العضوية</h2>
+      <p class="lede">هذه اللوحة مخصصة لإدارة طلبات العضوية والأعضاء.</p>
+      <div class="notice notice--error" id="loginNotice" hidden></div>
+      <form id="loginForm" novalidate>
+        <div class="field" data-field="username">
+          <label class="label" for="username">اسم المستخدم</label>
+          <input id="username" type="text" autocomplete="username" dir="ltr" required>
+          <p class="field-error"></p>
+        </div>
+        <div class="field" data-field="password">
+          <label class="label" for="password">كلمة المرور</label>
+          <input id="password" type="password" autocomplete="current-password" required>
+          <p class="field-error"></p>
+        </div>
+        <button class="btn btn--block" type="submit" id="loginBtn">دخول</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- dashboard -->
+  <div id="dashboard" hidden>
+    <div class="stats" id="stats"></div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="requests" aria-selected="true">طلبات العضوية</button>
+      <button class="tab" role="tab" data-tab="members" aria-selected="false">الأعضاء</button>
+      <button class="tab" role="tab" data-tab="form" aria-selected="false">تحرير الاستمارة</button>
+      <button class="tab" role="tab" data-tab="settings" aria-selected="false">التسجيل والتصدير</button>
+    </div>
+
+    <section class="panel" data-panel="requests">
+      <div class="toolbar">
+        <input type="search" id="reqSearch" placeholder="بحث بالاسم أو الرقم الشخصي أو رقم التواصل">
+        <select id="reqStatus">
+          <option value="pending">قيد المراجعة</option>
+          <option value="">جميع الطلبات</option>
+          <option value="approved">معتمدة</option>
+          <option value="rejected">مرفوضة</option>
+        </select>
+      </div>
+      <div id="requestsList"></div>
+    </section>
+
+    <section class="panel" data-panel="members" hidden>
+      <div class="toolbar">
+        <input type="search" id="memSearch" placeholder="بحث بالاسم أو الرقم الشخصي أو رقم التواصل">
+        <button class="btn btn--ghost btn--sm" type="button" id="exportBtn2">تصدير ملف الإكسل</button>
+      </div>
+      <div id="membersList"></div>
+    </section>
+
+    <section class="panel" data-panel="form" hidden>
+      <div class="card">
+        <h2>نصوص الاستمارة</h2>
+        <form id="formSettings" novalidate>
+          <div class="field" data-field="title">
+            <label class="label" for="fsTitle">عنوان الاستمارة</label>
+            <input id="fsTitle" type="text" required>
+            <p class="field-error"></p>
+          </div>
+          <div class="field" data-field="intro">
+            <label class="label" for="fsIntro">نص تمهيدي</label>
+            <textarea id="fsIntro" rows="2"></textarea>
+          </div>
+          <div class="field" data-field="terms">
+            <label class="label" for="fsTerms">شروط العضوية</label>
+            <textarea id="fsTerms" rows="14"></textarea>
+            <p class="help">يظهر هذا النص كما هو في أسفل الاستمارة.</p>
+          </div>
+          <div class="field" data-field="agree_text">
+            <label class="label" for="fsAgree">نص الإقرار</label>
+            <textarea id="fsAgree" rows="3" required></textarea>
+          </div>
+          <div class="field" data-field="success_message">
+            <label class="label" for="fsSuccess">رسالة نجاح الإرسال</label>
+            <input id="fsSuccess" type="text" required>
+          </div>
+          <div class="btn-row btn-row--end">
+            <button class="btn" type="submit" id="fsSave">حفظ النصوص</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="section-title" style="margin-top:0"><h2>حقول الاستمارة</h2></div>
+        <p class="help" style="margin-bottom:1rem">
+          الاسم والرقم الشخصي وتاريخ الميلاد ورقم التواصل حقول أساسية لأنها بيانات الدخول، فيمكن تعديل عناوينها فقط.
+        </p>
+        <div id="fieldsList"></div>
+        <div class="btn-row btn-row--end" style="margin-top:1rem">
+          <button class="btn btn--ghost" type="button" id="addFieldBtn">إضافة حقل جديد</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="settings" hidden>
+      <div class="card">
+        <h2>حالة التسجيل</h2>
+        <div class="notice" id="regState"></div>
+        <div class="btn-row">
+          <button class="btn" type="button" data-reg="open">فتح التسجيل</button>
+          <button class="btn btn--danger" type="button" data-reg="close">إغلاق التسجيل فوراً</button>
+        </div>
+        <hr class="rule">
+        <h3>جدولة موعد الإغلاق</h3>
+        <p class="help" style="margin-bottom:0.75rem">يظهر الموعد المجدول في أعلى صفحات التسجيل.</p>
+        <div class="field" data-field="close_at">
+          <label class="label" for="closeAt">تاريخ ووقت الإغلاق</label>
+          <input id="closeAt" type="datetime-local">
+          <p class="field-error"></p>
+        </div>
+        <div class="field" data-field="closed_message">
+          <label class="label" for="closedMsg">الرسالة الظاهرة بعد الإغلاق</label>
+          <textarea id="closedMsg" rows="2"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn" type="button" data-reg="schedule">حفظ موعد الإغلاق</button>
+          <button class="btn btn--ghost" type="button" data-reg="clear_schedule">إلغاء الموعد المجدول</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>كشف الأعضاء</h2>
+        <p class="lede">يُبنى الملف من قاعدة البيانات في كل مرة، ويحفظ الأرقام الشخصية كنص حتى لا تُحذف الأصفار في بدايتها.</p>
+        <button class="btn" type="button" id="exportBtn">تصدير ملف الإكسل</button>
+      </div>
+
+      <div class="card">
+        <h2>آخر الإجراءات</h2>
+        <div id="auditList"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="band" aria-hidden="true"></div>
+<footer data-footer></footer>
+<script type="module" src="/static/admin.js"></script>
+</body>
+</html>
