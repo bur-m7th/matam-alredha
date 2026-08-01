@@ -19,12 +19,20 @@ services:
       # Set to "false" only while testing over plain http://localhost.
       COOKIE_SECURE: "true"
 
+      # Secret URL segments for the two dashboards.
+      ADMIN_PATH: "${ADMIN_PATH:-admin}"
+      ELECTIONS_PATH: "${ELECTIONS_PATH:-elections}"
+
       # First boot only. Both accounts are created once and then ignored;
       # change the passwords from inside each dashboard afterwards.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}"
       ELECTIONS_USERNAME: "${ELECTIONS_USERNAME:-elections}"
       ELECTIONS_PASSWORD: "${ELECTIONS_PASSWORD:?set ELECTIONS_PASSWORD in .env}"
+
+      # Lockout recovery. Leave unset in normal operation.
+      ADMIN_PASSWORD_RESET: "${ADMIN_PASSWORD_RESET:-false}"
+      ELECTIONS_PASSWORD_RESET: "${ELECTIONS_PASSWORD_RESET:-false}"
 
       MAX_UPLOAD_MB: "5"
       REGISTER_LIMIT_PER_HOUR: "40"

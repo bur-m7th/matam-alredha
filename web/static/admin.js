@@ -5,7 +5,10 @@ import {
 import { emptyState, onSearch, setupLoginGate, setupTabs, stat } from "./dashboard.js";
 import { collectValues, renderFields } from "./formrender.js";
 
-const PREFIX = "/api/admin";
+// The dashboard lives at a segment the operator chooses, and its API sits
+// directly beneath it. Deriving the base from the current URL means the secret
+// segment never has to be compiled in.
+const PREFIX = location.pathname.replace(/\/+$/, "") + "/api";
 let formDefinition = { fields: [] };
 
 paintChrome();

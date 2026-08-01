@@ -41,6 +41,36 @@ func (s *Store) EnsureAdmin(username, password, displayName, kind string) (creat
 	return true, nil
 }
 
+// ForceResetPassword overwrites an account's password without knowing the old
+// one. It exists for lockout recovery from the server console and is never
+// reachable over HTTP. All sessions for the account are dropped.
+func (s *Store) ForceResetPassword(kind, username, newPassword string) error {
+	if err := auth.ValidatePasswordStrength(newPassword); err != nil {
+		return err
+	}
+	hash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	res, err := s.DB.Exec(
+		`UPDATE admins SET password_hash = ?, username = ? WHERE kind = ?`,
+		hash, username, kind)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return errors.New("لا يوجد حساب بهذا النوع")
+	}
+	var id int64
+	if err := s.DB.QueryRow(`SELECT id FROM admins WHERE kind = ?`, kind).Scan(&id); err == nil {
+		_, _ = s.DB.Exec(`DELETE FROM sessions WHERE subject_kind = ?`, "admin:"+kind)
+		s.Audit("system", "admin_password_reset", "تمت إعادة تعيين كلمة المرور من الخادم")
+		_ = id
+	}
+	return nil
+}
+
 func (s *Store) AdminByUsername(username, kind string) (Admin, string, error) {
 	var a Admin
 	var hash string

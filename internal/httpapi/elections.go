@@ -15,24 +15,25 @@ import (
 
 func (s *Server) electionRoutes(m *http.ServeMux) {
 	k := store.KindElections
-	m.HandleFunc("POST /api/elections/login", s.handleAdminLogin(k))
-	m.HandleFunc("POST /api/elections/logout", s.handleAdminLogout(k))
-	m.HandleFunc("GET /api/elections/session", s.requireAdmin(k, s.handleAdminSession))
-	m.HandleFunc("POST /api/elections/password", s.requireAdmin(k, s.changePassword))
+	b := "/" + s.cfg.ElectionsPath + "/api"
+	m.HandleFunc("POST "+b+"/login", s.handleAdminLogin(k))
+	m.HandleFunc("POST "+b+"/logout", s.handleAdminLogout(k))
+	m.HandleFunc("GET "+b+"/session", s.requireAdmin(k, s.handleAdminSession))
+	m.HandleFunc("POST "+b+"/password", s.requireAdmin(k, s.changePassword))
 
-	m.HandleFunc("GET /api/elections/overview", s.requireAdmin(k, s.handleElectionOverview))
-	m.HandleFunc("PUT /api/elections/settings", s.requireAdmin(k, s.handleElectionSettings))
-	m.HandleFunc("POST /api/elections/status", s.requireAdmin(k, s.handleElectionStatus))
-	m.HandleFunc("POST /api/elections/reset", s.requireAdmin(k, s.handleResetVotes))
+	m.HandleFunc("GET "+b+"/overview", s.requireAdmin(k, s.handleElectionOverview))
+	m.HandleFunc("PUT "+b+"/settings", s.requireAdmin(k, s.handleElectionSettings))
+	m.HandleFunc("POST "+b+"/status", s.requireAdmin(k, s.handleElectionStatus))
+	m.HandleFunc("POST "+b+"/reset", s.requireAdmin(k, s.handleResetVotes))
 
-	m.HandleFunc("POST /api/elections/roles", s.requireAdmin(k, s.handleCreateRole))
-	m.HandleFunc("PUT /api/elections/roles/{id}", s.requireAdmin(k, s.handleUpdateRole))
-	m.HandleFunc("DELETE /api/elections/roles/{id}", s.requireAdmin(k, s.handleDeleteRole))
+	m.HandleFunc("POST "+b+"/roles", s.requireAdmin(k, s.handleCreateRole))
+	m.HandleFunc("PUT "+b+"/roles/{id}", s.requireAdmin(k, s.handleUpdateRole))
+	m.HandleFunc("DELETE "+b+"/roles/{id}", s.requireAdmin(k, s.handleDeleteRole))
 
-	m.HandleFunc("POST /api/elections/participants", s.requireAdmin(k, s.handleCreateParticipant))
-	m.HandleFunc("PUT /api/elections/participants/{id}", s.requireAdmin(k, s.handleUpdateParticipant))
-	m.HandleFunc("DELETE /api/elections/participants/{id}", s.requireAdmin(k, s.handleDeleteParticipant))
-	m.HandleFunc("POST /api/elections/photo", s.requireAdmin(k, s.handleUploadPhoto))
+	m.HandleFunc("POST "+b+"/participants", s.requireAdmin(k, s.handleCreateParticipant))
+	m.HandleFunc("PUT "+b+"/participants/{id}", s.requireAdmin(k, s.handleUpdateParticipant))
+	m.HandleFunc("DELETE "+b+"/participants/{id}", s.requireAdmin(k, s.handleDeleteParticipant))
+	m.HandleFunc("POST "+b+"/photo", s.requireAdmin(k, s.handleUploadPhoto))
 }
 
 // resultSection carries tallies. This payload is only ever produced inside a

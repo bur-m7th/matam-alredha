@@ -35,6 +35,12 @@ type Config struct {
 	// RegisterLimit caps registrations per IP per hour. A whole village may
 	// share one connection, so this is deliberately generous.
 	RegisterLimit int
+
+	// AdminPath and ElectionsPath are the single URL segments the two
+	// dashboards live under. Both the page and its API sit beneath them, so a
+	// visitor who does not know the segment sees an ordinary 404 everywhere.
+	AdminPath     string
+	ElectionsPath string
 	WebFS         fs.FS
 	UploadDir     string
 	ExportPath    string
@@ -55,6 +61,11 @@ func New(cfg Config) *Server {
 	}
 	if cfg.RegisterLimit <= 0 {
 		cfg.RegisterLimit = 40
+	}
+	cfg.AdminPath = sanitizePath(cfg.AdminPath, "admin")
+	cfg.ElectionsPath = sanitizePath(cfg.ElectionsPath, "elections")
+	if cfg.AdminPath == cfg.ElectionsPath {
+		cfg.ElectionsPath += "-elections"
 	}
 	s := &Server{
 		cfg:     cfg,
@@ -87,8 +98,16 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /submitted", s.page("submitted.html"))
 	m.HandleFunc("GET /member", s.page("member.html"))
 	m.HandleFunc("GET /vote", s.page("vote.html"))
-	m.HandleFunc("GET /admin", s.page("admin.html"))
-	m.HandleFunc("GET /elections", s.page("elections.html"))
+	// The dashboards are unlinked from every public page and live at whatever
+	// segment the operator configured.
+	m.HandleFunc("GET /"+s.cfg.AdminPath, s.page("admin.html"))
+	m.HandleFunc("GET /"+s.cfg.ElectionsPath, s.page("elections.html"))
+
+	// Keep the whole site out of search indexes.
+	m.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("User-agent: *\nDisallow: /\n"))
+	})
 
 	// Static assets and uploaded photos
 	m.Handle("GET /static/", http.FileServer(http.FS(s.cfg.WebFS)))
@@ -134,6 +153,29 @@ func (s *Server) page(name string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(b)
 	}
+}
+
+// reservedPaths cannot be used as a dashboard segment; they already mean
+// something else.
+var reservedPaths = map[string]bool{
+	"register": true, "submitted": true, "member": true, "vote": true,
+	"static": true, "uploads": true, "api": true, "healthz": true, "robots.txt": true,
+}
+
+// sanitizePath reduces an operator-supplied value to one safe URL segment.
+func sanitizePath(v, fallback string) string {
+	v = strings.Trim(strings.TrimSpace(v), "/")
+	v = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			return r
+		}
+		return -1
+	}, v)
+	if v == "" || reservedPaths[strings.ToLower(v)] {
+		return fallback
+	}
+	return v
 }
 
 func (s *Server) noIndex(h http.Handler) http.Handler {

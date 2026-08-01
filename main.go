@@ -108,6 +108,8 @@ func main() {
 		Secure:        env("COOKIE_SECURE", "false") == "true",
 		MaxUpload:     int64(mustAtoi(env("MAX_UPLOAD_MB", "5"))) << 20,
 		RegisterLimit: mustAtoi(env("REGISTER_LIMIT_PER_HOUR", "40")),
+		AdminPath:     env("ADMIN_PATH", "admin"),
+		ElectionsPath: env("ELECTIONS_PATH", "elections"),
 	})
 
 	httpServer := &http.Server{
@@ -154,9 +156,25 @@ func bootstrapAdmins(st *store.Store) {
 		{store.KindMembership, "ADMIN_USERNAME", "ADMIN_PASSWORD", "admin", "إدارة العضوية"},
 		{store.KindElections, "ELECTIONS_USERNAME", "ELECTIONS_PASSWORD", "elections", "لجنة الانتخابات"},
 	}
+	// Set ADMIN_PASSWORD_RESET=true (or ELECTIONS_PASSWORD_RESET) to recover from
+	// a lockout: the matching password from the environment is applied to the
+	// existing account on the next boot. Unset it again afterwards.
 	for _, sp := range specs {
 		username := env(sp.userEnv, sp.defUser)
 		password := env(sp.passEnv, "")
+
+		if strings.EqualFold(env(strings.TrimSuffix(sp.passEnv, "_PASSWORD")+"_PASSWORD_RESET", "false"), "true") {
+			if password == "" {
+				log.Fatalf("%s: password reset requested but %s is empty", sp.display, sp.passEnv)
+			}
+			if err := st.ForceResetPassword(sp.kind, username, password); err != nil {
+				log.Fatalf("%s: password reset failed: %v", sp.display, err)
+			}
+			log.Printf("=== %s: password reset applied for username %q. Remove the reset variable and restart. ===",
+				sp.display, username)
+			continue
+		}
+
 		generated := false
 		if password == "" {
 			password = randomPassword()

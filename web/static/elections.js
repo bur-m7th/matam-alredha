@@ -3,7 +3,10 @@ import {
 } from "./app.js";
 import { emptyState, setupLoginGate, setupTabs, stat } from "./dashboard.js";
 
-const PREFIX = "/api/elections";
+// The dashboard lives at a segment the operator chooses, and its API sits
+// directly beneath it. Deriving the base from the current URL means the secret
+// segment never has to be compiled in.
+const PREFIX = location.pathname.replace(/\/+$/, "") + "/api";
 let state = null;
 
 paintChrome();

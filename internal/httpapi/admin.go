@@ -12,30 +12,31 @@ import (
 )
 
 func (s *Server) membershipRoutes(m *http.ServeMux) {
-	m.HandleFunc("POST /api/admin/login", s.handleAdminLogin(store.KindMembership))
-	m.HandleFunc("POST /api/admin/logout", s.handleAdminLogout(store.KindMembership))
-	m.HandleFunc("GET /api/admin/session", s.requireAdmin(store.KindMembership, s.handleAdminSession))
-	m.HandleFunc("POST /api/admin/password", s.requireAdmin(store.KindMembership, s.handleAdminPassword))
+	b := "/" + s.cfg.AdminPath + "/api"
+	m.HandleFunc("POST "+b+"/login", s.handleAdminLogin(store.KindMembership))
+	m.HandleFunc("POST "+b+"/logout", s.handleAdminLogout(store.KindMembership))
+	m.HandleFunc("GET "+b+"/session", s.requireAdmin(store.KindMembership, s.handleAdminSession))
+	m.HandleFunc("POST "+b+"/password", s.requireAdmin(store.KindMembership, s.handleAdminPassword))
 
-	m.HandleFunc("GET /api/admin/overview", s.requireAdmin(store.KindMembership, s.handleOverview))
-	m.HandleFunc("GET /api/admin/applications", s.requireAdmin(store.KindMembership, s.handleListApplications))
-	m.HandleFunc("POST /api/admin/applications/{id}/approve", s.requireAdmin(store.KindMembership, s.handleApprove))
-	m.HandleFunc("POST /api/admin/applications/{id}/reject", s.requireAdmin(store.KindMembership, s.handleReject))
-	m.HandleFunc("DELETE /api/admin/applications/{id}", s.requireAdmin(store.KindMembership, s.handleDeleteApplication))
+	m.HandleFunc("GET "+b+"/overview", s.requireAdmin(store.KindMembership, s.handleOverview))
+	m.HandleFunc("GET "+b+"/applications", s.requireAdmin(store.KindMembership, s.handleListApplications))
+	m.HandleFunc("POST "+b+"/applications/{id}/approve", s.requireAdmin(store.KindMembership, s.handleApprove))
+	m.HandleFunc("POST "+b+"/applications/{id}/reject", s.requireAdmin(store.KindMembership, s.handleReject))
+	m.HandleFunc("DELETE "+b+"/applications/{id}", s.requireAdmin(store.KindMembership, s.handleDeleteApplication))
 
-	m.HandleFunc("GET /api/admin/members", s.requireAdmin(store.KindMembership, s.handleListMembers))
-	m.HandleFunc("PUT /api/admin/members/{id}", s.requireAdmin(store.KindMembership, s.handleUpdateMember))
-	m.HandleFunc("DELETE /api/admin/members/{id}", s.requireAdmin(store.KindMembership, s.handleDeleteMember))
-	m.HandleFunc("GET /api/admin/export", s.requireAdmin(store.KindMembership, s.handleExport))
+	m.HandleFunc("GET "+b+"/members", s.requireAdmin(store.KindMembership, s.handleListMembers))
+	m.HandleFunc("PUT "+b+"/members/{id}", s.requireAdmin(store.KindMembership, s.handleUpdateMember))
+	m.HandleFunc("DELETE "+b+"/members/{id}", s.requireAdmin(store.KindMembership, s.handleDeleteMember))
+	m.HandleFunc("GET "+b+"/export", s.requireAdmin(store.KindMembership, s.handleExport))
 
-	m.HandleFunc("GET /api/admin/form", s.requireAdmin(store.KindMembership, s.handleGetForm))
-	m.HandleFunc("PUT /api/admin/form/settings", s.requireAdmin(store.KindMembership, s.handleFormSettings))
-	m.HandleFunc("POST /api/admin/form/fields", s.requireAdmin(store.KindMembership, s.handleAddField))
-	m.HandleFunc("PUT /api/admin/form/fields/{key}", s.requireAdmin(store.KindMembership, s.handleUpdateField))
-	m.HandleFunc("DELETE /api/admin/form/fields/{key}", s.requireAdmin(store.KindMembership, s.handleDeleteField))
-	m.HandleFunc("POST /api/admin/form/reorder", s.requireAdmin(store.KindMembership, s.handleReorderFields))
+	m.HandleFunc("GET "+b+"/form", s.requireAdmin(store.KindMembership, s.handleGetForm))
+	m.HandleFunc("PUT "+b+"/form/settings", s.requireAdmin(store.KindMembership, s.handleFormSettings))
+	m.HandleFunc("POST "+b+"/form/fields", s.requireAdmin(store.KindMembership, s.handleAddField))
+	m.HandleFunc("PUT "+b+"/form/fields/{key}", s.requireAdmin(store.KindMembership, s.handleUpdateField))
+	m.HandleFunc("DELETE "+b+"/form/fields/{key}", s.requireAdmin(store.KindMembership, s.handleDeleteField))
+	m.HandleFunc("POST "+b+"/form/reorder", s.requireAdmin(store.KindMembership, s.handleReorderFields))
 
-	m.HandleFunc("PUT /api/admin/registration", s.requireAdmin(store.KindMembership, s.handleRegistrationControl))
+	m.HandleFunc("PUT "+b+"/registration", s.requireAdmin(store.KindMembership, s.handleRegistrationControl))
 }
 
 // ---------------------------------------------------------------- auth
