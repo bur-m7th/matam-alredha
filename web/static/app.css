@@ -606,3 +606,38 @@ hr.rule { border: none; border-top: 1px solid var(--sand); margin: 1.5rem 0; }
     transition-duration: .01ms !important;
   }
 }
+
+
+/* ---- placeholder reference chips (print template tab) ---- */
+.keygrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.keychip {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.82rem;
+  direction: ltr;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--sand);
+  border-radius: 6px;
+  background: var(--stone-deep, #E7EAE5);
+  color: var(--ink, #23291F);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.keychip:hover { border-color: var(--brass); }
+
+.keychip.is-used {
+  border-color: var(--pine);
+  background: color-mix(in srgb, var(--pine) 12%, transparent);
+  font-weight: 600;
+}
+
+.keychip.is-used::after {
+  content: "\2713";
+  margin-inline-start: 0.35rem;
+  color: var(--pine);
+}

@@ -91,6 +91,9 @@ func (s *Server) handlePublicForm(w http.ResponseWriter, r *http.Request) {
 type registerRequest struct {
 	Values map[string]string `json:"values"`
 	Agree  bool              `json:"agree"`
+	// MeetingNo is only ever sent by the membership dashboard when editing a
+	// member; the public form ignores it.
+	MeetingNo string `json:"meeting_no"`
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {

@@ -1,13 +1,20 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"matam-alredha/internal/auth"
+	"matam-alredha/internal/docxt"
 	"matam-alredha/internal/store"
 )
 
@@ -35,6 +42,13 @@ func (s *Server) membershipRoutes(m *http.ServeMux) {
 	m.HandleFunc("PUT "+b+"/form/fields/{key}", s.requireAdmin(store.KindMembership, s.handleUpdateField))
 	m.HandleFunc("DELETE "+b+"/form/fields/{key}", s.requireAdmin(store.KindMembership, s.handleDeleteField))
 	m.HandleFunc("POST "+b+"/form/reorder", s.requireAdmin(store.KindMembership, s.handleReorderFields))
+
+	m.HandleFunc("GET "+b+"/template", s.requireAdmin(store.KindMembership, s.handleGetTemplate))
+	m.HandleFunc("POST "+b+"/template", s.requireAdmin(store.KindMembership, s.handleUploadTemplate))
+	m.HandleFunc("PUT "+b+"/signatories", s.requireAdmin(store.KindMembership, s.handleSignatories))
+	m.HandleFunc("DELETE "+b+"/template", s.requireAdmin(store.KindMembership, s.handleDeleteTemplate))
+	m.HandleFunc("GET "+b+"/members/{id}/document", s.requireAdmin(store.KindMembership, s.handleMemberDocument))
+	m.HandleFunc("GET "+b+"/applications/{id}/document", s.requireAdmin(store.KindMembership, s.handleApplicationDocument))
 
 	m.HandleFunc("PUT "+b+"/registration", s.requireAdmin(store.KindMembership, s.handleRegistrationControl))
 }
@@ -205,7 +219,13 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request, a store.A
 		fail(w, http.StatusBadRequest, "معرف غير صالح")
 		return
 	}
-	u, err := s.st.ApproveApplication(id, a.Username)
+	// The board meeting number is optional; it only appears on the printed form.
+	var req struct {
+		MeetingNo string `json:"meeting_no"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	u, err := s.st.ApproveApplication(id, a.Username, store.CleanText(req.MeetingNo, 40))
 	if err != nil {
 		var dup store.ErrDuplicate
 		if asDuplicate(err, &dup) {
@@ -286,7 +306,7 @@ func (s *Server) handleUpdateMember(w http.ResponseWriter, r *http.Request, a st
 		failField(w, http.StatusBadRequest, fieldKey, msg)
 		return
 	}
-	if err := s.st.UpdateUser(id, person, a.Username); err != nil {
+	if err := s.st.UpdateUser(id, person, store.CleanText(req.MeetingNo, 40), a.Username); err != nil {
 		var dup store.ErrDuplicate
 		if asDuplicate(err, &dup) {
 			failField(w, http.StatusConflict, dup.Field, dup.Message)
@@ -514,4 +534,206 @@ func (s *Server) handleRegistrationControl(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	ok(w, map[string]string{"message": "تم تحديث حالة التسجيل"})
+}
+
+// ---------------------------------------------------------------- print template
+
+// templateInfo describes the uploaded Word template for the dashboard.
+type templateInfo struct {
+	Exists       bool     `json:"exists"`
+	Filename     string   `json:"filename"`
+	UploadedAt   string   `json:"uploaded_at"`
+	Used         []string `json:"used"`      // placeholders found in the document
+	Available    []string `json:"available"` // placeholders the system can supply
+	Unrecognised []string `json:"unrecognised"`
+	Secretary    string   `json:"secretary"`
+	Chairman     string   `json:"chairman"`
+}
+
+func (s *Server) templatePath() string {
+	return filepath.Join(filepath.Dir(s.cfg.ExportPath), "print-template.docx")
+}
+
+func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	info := templateInfo{Available: s.st.DocumentKeys()}
+	info.Secretary = s.st.Setting("doc_secretary", "")
+	info.Chairman = s.st.Setting("doc_chairman", "")
+	info.Filename = s.st.Setting("print_template_name", "")
+	info.UploadedAt = s.st.Setting("print_template_at", "")
+
+	data, err := os.ReadFile(s.templatePath())
+	if err != nil {
+		ok(w, info)
+		return
+	}
+	info.Exists = true
+	used, err := docxt.Placeholders(data)
+	if err != nil {
+		info.Exists = false
+		ok(w, info)
+		return
+	}
+	info.Used = used
+	known := map[string]bool{}
+	for _, k := range info.Available {
+		known[k] = true
+	}
+	for _, u := range used {
+		if !known[u] {
+			info.Unrecognised = append(info.Unrecognised, u)
+		}
+	}
+	ok(w, info)
+}
+
+func (s *Server) handleUploadTemplate(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	if err := r.ParseMultipartForm(docxt.MaxTemplateSize); err != nil {
+		fail(w, http.StatusBadRequest, "تعذر قراءة الملف")
+		return
+	}
+	file, header, err := r.FormFile("template")
+	if err != nil {
+		fail(w, http.StatusBadRequest, "الرجاء اختيار ملف")
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, docxt.MaxTemplateSize+1))
+	if err != nil {
+		fail(w, http.StatusBadRequest, "تعذر قراءة الملف")
+		return
+	}
+	if err := docxt.Validate(data); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Write through a temporary file so a failed upload cannot leave a
+	// half-written template behind.
+	tmp := s.templatePath() + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		fail(w, http.StatusInternalServerError, "تعذر حفظ الملف")
+		return
+	}
+	if err := os.Rename(tmp, s.templatePath()); err != nil {
+		os.Remove(tmp)
+		fail(w, http.StatusInternalServerError, "تعذر حفظ الملف")
+		return
+	}
+
+	name := filepath.Base(header.Filename)
+	_ = s.st.SetSetting("print_template_name", name)
+	_ = s.st.SetSetting("print_template_at", store.Now())
+	s.st.Audit(a.Username, "template_upload", "تم رفع نموذج الطباعة: "+name)
+
+	s.handleGetTemplate(w, r, a)
+}
+
+func (s *Server) handleSignatories(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	var req struct {
+		Secretary string `json:"secretary"`
+		Chairman  string `json:"chairman"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fail(w, http.StatusBadRequest, "بيانات غير صالحة")
+		return
+	}
+	_ = s.st.SetSetting("doc_secretary", store.CleanText(req.Secretary, 80))
+	_ = s.st.SetSetting("doc_chairman", store.CleanText(req.Chairman, 80))
+	s.st.Audit(a.Username, "signatories", "تم تحديث أسماء المعتمدين")
+	ok(w, map[string]string{"message": "تم حفظ الأسماء"})
+}
+
+func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	if err := os.Remove(s.templatePath()); err != nil && !os.IsNotExist(err) {
+		fail(w, http.StatusInternalServerError, "تعذر حذف الملف")
+		return
+	}
+	_ = s.st.SetSetting("print_template_name", "")
+	_ = s.st.SetSetting("print_template_at", "")
+	s.st.Audit(a.Username, "template_delete", "تم حذف نموذج الطباعة")
+	ok(w, map[string]string{"message": "تم حذف نموذج الطباعة"})
+}
+
+// renderDocument fills the stored template and sends it as a download.
+func (s *Server) renderDocument(w http.ResponseWriter, p store.Person, status, decidedAt string, no int, meetingNo string) {
+	data, err := os.ReadFile(s.templatePath())
+	if err != nil {
+		fail(w, http.StatusNotFound, "لم يتم رفع نموذج الطباعة بعد")
+		return
+	}
+	filled, err := docxt.Fill(data, s.st.DocumentValues(p, status, decidedAt, no, meetingNo))
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "تعذر تعبئة النموذج: "+err.Error())
+		return
+	}
+
+	name := sanitizeFilename(p.Name) + ".docx"
+	w.Header().Set("Content-Type",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	w.Header().Set("Content-Disposition",
+		"attachment; filename=\"membership-form.docx\"; filename*=UTF-8''"+url.PathEscape(name))
+	w.Header().Set("Content-Length", strconv.Itoa(len(filled)))
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(filled)
+}
+
+// sanitizeFilename keeps Arabic letters but drops anything that would upset a
+// Content-Disposition header or a file system.
+func sanitizeFilename(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.Map(func(r rune) rune {
+		switch r {
+		case '/', '\\', ':', '*', '?', '"', '<', '>', '|', '\n', '\r', '\t':
+			return '-'
+		}
+		if r < 0x20 {
+			return -1
+		}
+		return r
+	}, name)
+	if name == "" {
+		name = "استمارة"
+	}
+	if len(name) > 80 {
+		name = name[:80]
+	}
+	return name
+}
+
+func (s *Server) handleMemberDocument(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		fail(w, http.StatusBadRequest, "معرّف غير صالح")
+		return
+	}
+	u, err := s.st.User(id)
+	if err != nil {
+		fail(w, http.StatusNotFound, "العضو غير موجود")
+		return
+	}
+	// The membership number is the member's permanent id, which for the
+	// imported members matches their row in the original register.
+	s.renderDocument(w, u.Person, store.PrintStatusApproved, u.CreatedAt, int(u.ID), u.MeetingNo)
+}
+
+func (s *Server) handleApplicationDocument(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		fail(w, http.StatusBadRequest, "معرّف غير صالح")
+		return
+	}
+	app, err := s.st.Application(id)
+	if err != nil {
+		fail(w, http.StatusNotFound, "الطلب غير موجود")
+		return
+	}
+	status := store.PrintStatusPending
+	switch app.Status {
+	case "approved":
+		status = store.PrintStatusApproved
+	case "rejected":
+		status = store.PrintStatusRejected
+	}
+	s.renderDocument(w, app.Person, status, app.DecidedAt, 0, app.MeetingNo)
 }

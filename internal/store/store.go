@@ -74,7 +74,8 @@ CREATE TABLE IF NOT EXISTS applications (
 	reject_reason    TEXT NOT NULL DEFAULT '',
 	created_at       TEXT NOT NULL,
 	decided_at       TEXT NOT NULL DEFAULT '',
-	decided_by       TEXT NOT NULL DEFAULT ''
+	decided_by       TEXT NOT NULL DEFAULT '',
+	meeting_no       TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
 CREATE INDEX IF NOT EXISTS idx_applications_cpr    ON applications(cpr);
@@ -97,6 +98,7 @@ CREATE TABLE IF NOT EXISTS users (
 	affiliated       INTEGER NOT NULL DEFAULT 0,
 	affiliation      TEXT NOT NULL DEFAULT '',
 	extra            TEXT NOT NULL DEFAULT '{}',
+	meeting_no       TEXT NOT NULL DEFAULT '',
 	source           TEXT NOT NULL DEFAULT 'form',
 	created_at       TEXT NOT NULL
 );
@@ -176,10 +178,57 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
 	s := &Store{DB: db}
+	if err := s.migrate(); err != nil {
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
 	if err := s.installDefaults(); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// migrate adds columns introduced after a database was first created. CREATE
+// TABLE IF NOT EXISTS leaves existing tables untouched, so new columns have to
+// be added explicitly for installations that are already running.
+func (s *Store) migrate() error {
+	additions := []struct{ table, column, definition string }{
+		{"users", "meeting_no", "TEXT NOT NULL DEFAULT ''"},
+		{"applications", "meeting_no", "TEXT NOT NULL DEFAULT ''"},
+	}
+	for _, a := range additions {
+		has, err := s.hasColumn(a.table, a.column)
+		if err != nil {
+			return err
+		}
+		if has {
+			continue
+		}
+		if _, err := s.DB.Exec("ALTER TABLE " + a.table + " ADD COLUMN " + a.column + " " + a.definition); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) hasColumn(table, column string) (bool, error) {
+	rows, err := s.DB.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt any
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 func (s *Store) Close() error { return s.DB.Close() }

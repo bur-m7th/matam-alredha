@@ -16,6 +16,7 @@ setupTabs((tab) => {
   if (tab === "requests") loadRequests();
   if (tab === "members") loadMembers();
   if (tab === "form") loadForm();
+  if (tab === "template") loadTemplate();
   if (tab === "settings") loadOverview();
 });
 
@@ -127,6 +128,10 @@ function requestCard(app) {
   } else if (app.status === "rejected") {
     actions.append(el("button", { class: "btn btn--danger btn--sm", type: "button", onclick: () => removeRequest(app) }, "حذف الطلب"));
   }
+  actions.prepend(el("button", {
+    class: "btn btn--ghost btn--sm", type: "button",
+    onclick: () => downloadDocument(`${PREFIX}/applications/${app.id}/document`),
+  }, "طباعة الاستمارة"));
 
   return el("div", { class: "card" },
     el("div", { style: "display:flex;gap:0.75rem;align-items:baseline;flex-wrap:wrap" },
@@ -153,7 +158,11 @@ function labelForKey(key) {
 async function approve(app, btn) {
   busy(btn, true, "جارٍ الاعتماد");
   try {
-    const res = await api(`${PREFIX}/applications/${app.id}/approve`, { method: "POST" });
+    const meeting = await promptMeetingNo();
+    if (meeting === null) return;
+    const res = await api(`${PREFIX}/applications/${app.id}/approve`, {
+      method: "POST", body: { meeting_no: meeting },
+    });
     toast(res.message, "ok");
     loadRequests();
     loadOverview();
@@ -212,6 +221,10 @@ async function loadMembers() {
       el("td", {},
         el("div", { class: "btn-row" },
           el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: () => editMember(m) }, "تعديل"),
+          el("button", {
+            class: "btn btn--ghost btn--sm", type: "button",
+            onclick: () => downloadDocument(`${PREFIX}/members/${m.id}/document`),
+          }, "طباعة"),
           el("button", { class: "btn btn--danger btn--sm", type: "button", onclick: () => removeMember(m) }, "حذف")
         )
       )
@@ -260,9 +273,17 @@ function editMember(member) {
   values.affiliation = member.affiliation;
 
   const holder = el("div", { id: "editFields" });
+  const meetingInput = el("input", { id: "editMeetingNo", type: "text", inputmode: "numeric", value: member.meeting_no || "" });
   const dialog = el("dialog", {},
     el("div", { class: "dialog__head", text: "تعديل بيانات العضو" }),
-    el("div", { class: "dialog__body" }, holder),
+    el("div", { class: "dialog__body" },
+      holder,
+      el("div", { class: "field" },
+        el("label", { class: "label", for: "editMeetingNo", text: "رقم اجتماع مجلس الإدارة" }),
+        meetingInput,
+        el("p", { class: "help", text: "يظهر في الاستمارة المطبوعة فقط." })
+      )
+    ),
     el("div", { class: "dialog__foot" },
       el("button", { class: "btn btn--ghost", type: "button", onclick: () => { dialog.close(); dialog.remove(); } }, "إلغاء"),
       el("button", { class: "btn", type: "button", id: "saveMember" }, "حفظ")
@@ -279,7 +300,11 @@ function editMember(member) {
     try {
       const res = await api(`${PREFIX}/members/${member.id}`, {
         method: "PUT",
-        body: { values: collectValues(holder, formDefinition.fields), agree: true },
+        body: {
+          values: collectValues(holder, formDefinition.fields),
+          agree: true,
+          meeting_no: meetingInput.value,
+        },
       });
       dialog.close();
       dialog.remove();
@@ -541,3 +566,160 @@ function promptText(label, title) {
     dialog.showModal();
   });
 }
+
+// The board records its decision against a numbered meeting. It is optional, so
+// the operator can approve without it and fill it in later from the edit dialog.
+function promptMeetingNo() {
+  return new Promise((resolve) => {
+    const input = el("input", { id: "mtgNo", type: "text", inputmode: "numeric", placeholder: "مثال: 12" });
+    const dialog = el("dialog", {},
+      el("div", { class: "dialog__head", text: "اعتماد العضوية" }),
+      el("div", { class: "dialog__body" },
+        el("div", { class: "field" },
+          el("label", { class: "label", for: "mtgNo", text: "رقم اجتماع مجلس الإدارة" }),
+          input,
+          el("p", { class: "help", text: "يظهر في الاستمارة المطبوعة. يمكن تركه فارغاً وإضافته لاحقاً." })
+        )
+      ),
+      el("div", { class: "dialog__foot" },
+        el("button", {
+          class: "btn btn--ghost", type: "button",
+          onclick: () => { dialog.close(); dialog.remove(); resolve(null); },
+        }, "إلغاء"),
+        el("button", {
+          class: "btn", type: "button",
+          onclick: () => { const v = input.value; dialog.close(); dialog.remove(); resolve(v); },
+        }, "اعتماد")
+      )
+    );
+    document.body.append(dialog);
+    dialog.showModal();
+    input.focus();
+  });
+}
+
+/* ------------------------------------------------------------ print template */
+
+// The document endpoints return a file, not JSON, so the fetch wrapper is
+// bypassed here. An error still arrives as JSON, so it is surfaced properly
+// rather than downloading a file full of an error message.
+async function downloadDocument(url) {
+  try {
+    const res = await fetch(url, {
+      credentials: "same-origin",
+      headers: { "X-Requested-With": "matam" },
+    });
+    if (!res.ok) {
+      let message = "تعذر إنشاء الاستمارة";
+      try { message = (await res.json()).error || message; } catch { /* not JSON */ }
+      toast(message, "error");
+      return;
+    }
+    const blob = await res.blob();
+    const name = filenameFrom(res.headers.get("Content-Disposition")) || "استمارة.docx";
+    const href = URL.createObjectURL(blob);
+    const a = el("a", { href, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+  } catch {
+    toast("تعذر الاتصال بالخادم", "error");
+  }
+}
+
+function filenameFrom(header) {
+  if (!header) return "";
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (star) { try { return decodeURIComponent(star[1]); } catch { /* fall through */ } }
+  const plain = /filename="([^"]+)"/i.exec(header);
+  return plain ? plain[1] : "";
+}
+
+async function loadTemplate() {
+  let info;
+  try { info = await api(`${PREFIX}/template`); } catch (err) { handleError(err); return; }
+
+  const state = $("#tplState");
+  $("#tplDeleteBtn").hidden = !info.exists;
+  $("#tplUploadBtn").textContent = info.exists ? "استبدال الملف" : "رفع ملف Word";
+
+  if (!info.exists) {
+    state.className = "notice notice--warn";
+    state.textContent = "لم يتم رفع نموذج للطباعة بعد. أزرار الطباعة لن تعمل حتى ترفع ملفاً.";
+  } else {
+    state.className = "notice notice--ok";
+    clear(state).append(
+      el("div", { text: `الملف الحالي: ${info.filename || "نموذج الطباعة"}` }),
+      info.uploaded_at ? el("div", { class: "help", text: `تاريخ الرفع: ${stampToDisplay(info.uploaded_at)}` }) : null,
+      el("div", { class: "help", text: `عدد الرموز المستخدمة في الملف: ${(info.used || []).length}` })
+    );
+  }
+
+  if (info.unrecognised && info.unrecognised.length) {
+    state.append(el("div", {
+      style: "margin-top:0.75rem;color:var(--danger);font-weight:600",
+      text: "رموز غير معروفة في الملف: " + info.unrecognised.map((k) => `{{${k}}}`).join("، "),
+    }));
+  }
+
+  $("#sigSecretary").value = info.secretary || "";
+  $("#sigChairman").value = info.chairman || "";
+
+  const used = new Set(info.used || []);
+  const box = clear($("#tplKeys"));
+  box.append(el("div", { class: "keygrid" }, (info.available || []).map((k) =>
+    el("button", {
+      class: "keychip" + (used.has(k) ? " is-used" : ""),
+      type: "button",
+      title: used.has(k) ? "مستخدم في الملف الحالي" : "غير مستخدم بعد",
+      onclick: () => {
+        navigator.clipboard?.writeText(`{{${k}}}`);
+        toast(`تم نسخ {{${k}}}`, "ok");
+      },
+    }, `{{${k}}}`)
+  )));
+}
+
+$("#signatories").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const btn = $("#sigSave");
+  busy(btn, true, "جارٍ الحفظ");
+  try {
+    const res = await api(`${PREFIX}/signatories`, {
+      method: "PUT",
+      body: { secretary: $("#sigSecretary").value, chairman: $("#sigChairman").value },
+    });
+    toast(res.message, "ok");
+  } catch (err) { handleError(err); } finally { busy(btn, false); }
+});
+
+$("#tplUploadBtn").addEventListener("click", () => $("#tplFile").click());
+
+$("#tplFile").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const data = new FormData();
+  data.append("template", file);
+  const btn = $("#tplUploadBtn");
+  busy(btn, true, "جارٍ الرفع");
+  try {
+    await api(`${PREFIX}/template`, { method: "POST", body: data });
+    toast("تم رفع نموذج الطباعة", "ok");
+    loadTemplate();
+  } catch (err) {
+    handleError(err);
+  } finally {
+    busy(btn, false);
+    event.target.value = "";
+  }
+});
+
+$("#tplDeleteBtn").addEventListener("click", async () => {
+  if (!await confirmAction("سيتم حذف نموذج الطباعة، ولن تعمل أزرار الطباعة حتى ترفع ملفاً جديداً.", "حذف")) return;
+  try {
+    const res = await api(`${PREFIX}/template`, { method: "DELETE" });
+    toast(res.message, "ok");
+    loadTemplate();
+  } catch (err) { handleError(err); }
+});

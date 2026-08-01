@@ -59,6 +59,7 @@
       <button class="tab" role="tab" data-tab="requests" aria-selected="true">طلبات العضوية</button>
       <button class="tab" role="tab" data-tab="members" aria-selected="false">الأعضاء</button>
       <button class="tab" role="tab" data-tab="form" aria-selected="false">تحرير الاستمارة</button>
+      <button class="tab" role="tab" data-tab="template" aria-selected="false">نموذج الطباعة</button>
       <button class="tab" role="tab" data-tab="settings" aria-selected="false">التسجيل والتصدير</button>
     </div>
 
@@ -124,6 +125,55 @@
         <div class="btn-row btn-row--end" style="margin-top:1rem">
           <button class="btn btn--ghost" type="button" id="addFieldBtn">إضافة حقل جديد</button>
         </div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="template" hidden>
+      <div class="card">
+        <h2>نموذج الطباعة</h2>
+        <p class="lede">
+          ارفع ملف Word يحتوي على استمارة العضوية الورقية، وضع في المواضع المطلوبة
+          رموزاً بالشكل <code>{{name}}</code>. عند طباعة استمارة أي عضو يستبدل النظام
+          هذه الرموز ببياناته الفعلية.
+        </p>
+        <div id="tplState" class="notice"></div>
+        <div class="btn-row" style="margin-top:1rem">
+          <input type="file" id="tplFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+          <button class="btn" type="button" id="tplUploadBtn">رفع ملف Word</button>
+          <button class="btn btn--danger btn--sm" type="button" id="tplDeleteBtn" hidden>حذف النموذج</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>أسماء المعتمدين</h2>
+        <p class="lede">
+          تظهر عبر الرمزين <code>{{secretary}}</code> و <code>{{chairman}}</code>.
+          اتركهما فارغين إذا كنت تفضّل التوقيع باليد على النسخة المطبوعة.
+        </p>
+        <form id="signatories" novalidate>
+          <div class="grid-2">
+            <div class="field">
+              <label class="label" for="sigSecretary">أمين السر</label>
+              <input id="sigSecretary" type="text">
+            </div>
+            <div class="field">
+              <label class="label" for="sigChairman">رئيس مجلس الإدارة</label>
+              <input id="sigChairman" type="text">
+            </div>
+          </div>
+          <div class="btn-row btn-row--end">
+            <button class="btn" type="submit" id="sigSave">حفظ</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>الرموز المتاحة</h2>
+        <p class="help" style="margin-bottom:1rem">
+          انسخ الرمز كما هو وضعه في ملف Word. الرمز الذي لا يعرفه النظام يبقى ظاهراً في
+          الاستمارة المطبوعة حتى تتمكن من ملاحظة الخطأ.
+        </p>
+        <div id="tplKeys"></div>
       </div>
     </section>
 

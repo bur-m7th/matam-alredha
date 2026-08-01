@@ -72,7 +72,7 @@ func (s *Store) CreateApplication(p Person) (int64, error) {
 
 const appCols = `id, name, cpr, dob, phone, email, house, road, block,
 	volunteer, volunteer_field, affiliated, affiliation, extra,
-	status, reject_reason, created_at, decided_at, decided_by`
+	status, reject_reason, created_at, decided_at, decided_by, meeting_no`
 
 func scanApplication(sc interface{ Scan(...any) error }) (Application, error) {
 	var a Application
@@ -80,7 +80,7 @@ func scanApplication(sc interface{ Scan(...any) error }) (Application, error) {
 	var extra string
 	err := sc.Scan(&a.ID, &a.Name, &a.CPR, &a.DOB, &a.Phone, &a.Email, &a.House, &a.Road, &a.Block,
 		&vol, &a.VolunteerField, &aff, &a.Affiliation, &extra,
-		&a.Status, &a.RejectReason, &a.CreatedAt, &a.DecidedAt, &a.DecidedBy)
+		&a.Status, &a.RejectReason, &a.CreatedAt, &a.DecidedAt, &a.DecidedBy, &a.MeetingNo)
 	if err != nil {
 		return a, err
 	}
@@ -126,7 +126,7 @@ func (s *Store) Application(id int64) (Application, error) {
 
 // ApproveApplication promotes a pending request into a member record. This is
 // the only path that creates a login, and it is what the export reflects.
-func (s *Store) ApproveApplication(id int64, actor string) (User, error) {
+func (s *Store) ApproveApplication(id int64, actor, meetingNo string) (User, error) {
 	a, err := s.Application(id)
 	if err != nil {
 		return User{}, err
@@ -146,11 +146,11 @@ func (s *Store) ApproveApplication(id int64, actor string) (User, error) {
 	res, err := tx.Exec(`
 		INSERT INTO users
 		 (application_id, name, cpr, dob, phone, email, house, road, block,
-		  volunteer, volunteer_field, affiliated, affiliation, extra, source, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'form',?)`,
+		  volunteer, volunteer_field, affiliated, affiliation, extra, meeting_no, source, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'form',?)`,
 		a.ID, a.Name, a.CPR, a.DOB, a.Phone, a.Email, a.House, a.Road, a.Block,
 		boolInt(a.Volunteer), a.VolunteerField, boolInt(a.Affiliated), a.Affiliation,
-		encodeExtra(a.Extra), Now())
+		encodeExtra(a.Extra), meetingNo, Now())
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return User{}, ErrDuplicate{"cpr", "الرقم الشخصي مسجل مسبقاً"}
@@ -159,8 +159,8 @@ func (s *Store) ApproveApplication(id int64, actor string) (User, error) {
 	}
 	uid, _ := res.LastInsertId()
 	if _, err := tx.Exec(
-		`UPDATE applications SET status='approved', decided_at=?, decided_by=?, reject_reason='' WHERE id=?`,
-		Now(), actor, id); err != nil {
+		`UPDATE applications SET status='approved', decided_at=?, decided_by=?, reject_reason='', meeting_no=? WHERE id=?`,
+		Now(), actor, meetingNo, id); err != nil {
 		return User{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -206,7 +206,7 @@ func (s *Store) DeleteApplication(id int64, actor string) error {
 
 const userCols = `u.id, u.application_id, u.name, u.cpr, u.dob, u.phone, u.email,
 	u.house, u.road, u.block, u.volunteer, u.volunteer_field, u.affiliated,
-	u.affiliation, u.extra, u.source, u.created_at,
+	u.affiliation, u.extra, u.meeting_no, u.source, u.created_at,
 	EXISTS(SELECT 1 FROM ballots b WHERE b.user_id = u.id)`
 
 func scanUser(sc interface{ Scan(...any) error }) (User, error) {
@@ -216,7 +216,7 @@ func scanUser(sc interface{ Scan(...any) error }) (User, error) {
 	var extra string
 	err := sc.Scan(&u.ID, &appID, &u.Name, &u.CPR, &u.DOB, &u.Phone, &u.Email,
 		&u.House, &u.Road, &u.Block, &vol, &u.VolunteerField, &aff,
-		&u.Affiliation, &extra, &u.Source, &u.CreatedAt, &voted)
+		&u.Affiliation, &extra, &u.MeetingNo, &u.Source, &u.CreatedAt, &voted)
 	if err != nil {
 		return u, err
 	}
@@ -313,7 +313,7 @@ func (s *Store) DeleteUser(id int64, actor string) error {
 }
 
 // UpdateUser lets the membership admin correct a member's details.
-func (s *Store) UpdateUser(id int64, p Person, actor string) error {
+func (s *Store) UpdateUser(id int64, p Person, meetingNo, actor string) error {
 	var n int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE cpr=? AND id<>?`, p.CPR, id).Scan(&n); err != nil {
 		return err
@@ -329,10 +329,10 @@ func (s *Store) UpdateUser(id int64, p Person, actor string) error {
 	}
 	_, err := s.DB.Exec(`
 		UPDATE users SET name=?, cpr=?, dob=?, phone=?, email=?, house=?, road=?, block=?,
-		 volunteer=?, volunteer_field=?, affiliated=?, affiliation=?, extra=? WHERE id=?`,
+		 volunteer=?, volunteer_field=?, affiliated=?, affiliation=?, extra=?, meeting_no=? WHERE id=?`,
 		p.Name, p.CPR, p.DOB, p.Phone, p.Email, p.House, p.Road, p.Block,
 		boolInt(p.Volunteer), p.VolunteerField, boolInt(p.Affiliated), p.Affiliation,
-		encodeExtra(p.Extra), id)
+		encodeExtra(p.Extra), meetingNo, id)
 	if err == nil {
 		s.Audit(actor, "update_user", fmt.Sprintf("عضو %d - %s", id, p.Name))
 	}
