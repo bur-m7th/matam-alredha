@@ -41,11 +41,17 @@ type Config struct {
 	// visitor who does not know the segment sees an ordinary 404 everywhere.
 	AdminPath     string
 	ElectionsPath string
-	WebFS         fs.FS
-	UploadDir     string
-	ExportPath    string
-	Secure        bool // set the Secure flag on cookies (behind HTTPS)
-	MaxUpload     int64
+
+	// TrustProxy tells the server it sits behind a reverse proxy or a
+	// Cloudflare tunnel, so forwarded client-address headers are meaningful.
+	// It must stay false when the server is reachable directly: otherwise a
+	// caller can forge the header and sidestep every rate limit.
+	TrustProxy bool
+	WebFS      fs.FS
+	UploadDir  string
+	ExportPath string
+	Secure     bool // set the Secure flag on cookies (behind HTTPS)
+	MaxUpload  int64
 }
 
 type Server struct {
@@ -420,12 +426,25 @@ func (rl *rateLimiter) allow(key string, n int, window time.Duration) bool {
 	return true
 }
 
-func clientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		if i := strings.IndexByte(fwd, ','); i > 0 {
-			return strings.TrimSpace(fwd[:i])
+// clientIP identifies the caller for rate-limiting purposes.
+//
+// Forwarded headers are only consulted when the operator has declared that a
+// proxy is in front; a directly reachable server must ignore them, since they
+// are trivially forged and would let one caller appear as thousands.
+func (s *Server) clientIP(r *http.Request) string {
+	if s.cfg.TrustProxy {
+		// Cloudflare's own header is preferred: it carries a single address and
+		// cannot be extended by the caller the way X-Forwarded-For can.
+		if cf := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); cf != "" {
+			return cf
 		}
-		return strings.TrimSpace(fwd)
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			// Left-most entry is the original client.
+			if i := strings.IndexByte(fwd, ','); i > 0 {
+				return strings.TrimSpace(fwd[:i])
+			}
+			return strings.TrimSpace(fwd)
+		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

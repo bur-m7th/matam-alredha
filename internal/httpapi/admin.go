@@ -72,7 +72,7 @@ func (s *Server) handleAdminLogin(kind string) http.HandlerFunc {
 		if !s.checkOrigin(w, r) {
 			return
 		}
-		if !s.limiter.allow("adminlogin:"+kind+":"+clientIP(r), 8, 15*time.Minute) {
+		if !s.limiter.allow("adminlogin:"+kind+":"+s.clientIP(r), 8, 15*time.Minute) {
 			fail(w, http.StatusTooManyRequests, "عدد محاولات الدخول تجاوز الحد. الرجاء المحاولة بعد قليل")
 			return
 		}

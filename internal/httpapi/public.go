@@ -101,7 +101,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if !s.checkOrigin(w, r) {
 		return
 	}
-	if !s.limiter.allow("register:"+clientIP(r), s.cfg.RegisterLimit, time.Hour) {
+	if !s.limiter.allow("register:"+s.clientIP(r), s.cfg.RegisterLimit, time.Hour) {
 		fail(w, http.StatusTooManyRequests, "تم إرسال عدة طلبات. الرجاء المحاولة بعد قليل")
 		return
 	}
@@ -269,7 +269,7 @@ func (s *Server) handleMemberLogin(w http.ResponseWriter, r *http.Request) {
 	if !s.checkOrigin(w, r) {
 		return
 	}
-	ip := clientIP(r)
+	ip := s.clientIP(r)
 	if !s.limiter.allow("login:"+ip, 40, 15*time.Minute) {
 		fail(w, http.StatusTooManyRequests, "عدد محاولات الدخول تجاوز الحد. الرجاء المحاولة بعد قليل")
 		return
@@ -571,7 +571,7 @@ func (s *Server) handleStaffGate(w http.ResponseWriter, r *http.Request) {
 	if !s.checkOrigin(w, r) {
 		return
 	}
-	if !s.limiter.allow("gate:"+clientIP(r), 8, 15*time.Minute) {
+	if !s.limiter.allow("gate:"+s.clientIP(r), 8, 15*time.Minute) {
 		fail(w, http.StatusTooManyRequests, "عدد محاولات الدخول تجاوز الحد. الرجاء المحاولة بعد قليل")
 		return
 	}

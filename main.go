@@ -108,6 +108,7 @@ func main() {
 		Secure:        env("COOKIE_SECURE", "false") == "true",
 		MaxUpload:     int64(mustAtoi(env("MAX_UPLOAD_MB", "5"))) << 20,
 		RegisterLimit: mustAtoi(env("REGISTER_LIMIT_PER_HOUR", "40")),
+		TrustProxy:    strings.EqualFold(env("TRUST_PROXY", "false"), "true"),
 		AdminPath:     env("ADMIN_PATH", "admin"),
 		ElectionsPath: env("ELECTIONS_PATH", "elections"),
 	})

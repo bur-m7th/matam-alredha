@@ -5,11 +5,15 @@ services:
     container_name: matam-alredha
     restart: unless-stopped
 
-    # Bound to the loopback interface on purpose. Put a reverse proxy in front
-    # to terminate TLS; the session cookies are marked Secure and will not be
-    # sent over plain HTTP once COOKIE_SECURE is true.
-    ports:
-      - "127.0.0.1:8080:8080"
+    # No port is published. The Cloudflare tunnel container reaches the app
+    # over the internal network below, so nothing is exposed on the host at all.
+    # If you would rather run your own reverse proxy on the host instead,
+    # uncomment this and point the proxy at 127.0.0.1:8080.
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+
+    networks:
+      - matam
 
     environment:
       DATA_DIR: /data
@@ -34,6 +38,11 @@ services:
       ADMIN_PASSWORD_RESET: "${ADMIN_PASSWORD_RESET:-false}"
       ELECTIONS_PASSWORD_RESET: "${ELECTIONS_PASSWORD_RESET:-false}"
 
+      # Required behind Cloudflare or any reverse proxy, so rate limiting sees
+      # the real visitor rather than the proxy. Leave it false if the container
+      # is ever reachable directly: the header can otherwise be forged.
+      TRUST_PROXY: "true"
+
       MAX_UPLOAD_MB: "5"
       REGISTER_LIMIT_PER_HOUR: "40"
 
@@ -51,6 +60,25 @@ services:
 
     security_opt:
       - no-new-privileges:true
+
+  # ---------------------------------------------------------------------
+  # Cloudflare tunnel. Create the tunnel in the Cloudflare dashboard, copy the
+  # token into .env, and this container connects outward — no inbound ports,
+  # no port forwarding on the router, works behind CGNAT.
+  # Delete this whole service if you are using your own reverse proxy instead.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: matam-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - matam
+    networks:
+      - matam
+
+networks:
+  matam:
+    driver: bridge
 
 volumes:
   matam-data:

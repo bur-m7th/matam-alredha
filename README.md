@@ -42,6 +42,8 @@
 
 ---
 
+> **للنشر على خادم عبر Portainer و Cloudflare:** راجع ملف `DEPLOY.md` للدليل الكامل خطوة بخطوة.
+
 ## التشغيل عبر Docker
 
 ```bash
@@ -103,6 +105,7 @@ ADMIN_PASSWORD=... ELECTIONS_PASSWORD=... ./matam
 | `ELECTIONS_USERNAME` / `ELECTIONS_PASSWORD` | `elections` / عشوائية | حساب لجنة الانتخابات، عند أول تشغيل فقط |
 | `ADMIN_PATH` | `admin` | العنوان السري للوحة إدارة العضوية |
 | `ELECTIONS_PATH` | `elections` | العنوان السري للوحة لجنة الانتخابات |
+| `TRUST_PROXY` | `false` | اجعله `true` خلف Cloudflare أو أي خادم عكسي |
 | `TZ` | `Asia/Bahrain` | التوقيت المستخدم في مواعيد الإغلاق |
 
 إذا لم تُحدَّد كلمة المرور عند أول تشغيل، يولّدها النظام عشوائياً ويطبعها في السجل مرة واحدة. احفظها فوراً.

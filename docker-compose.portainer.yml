@@ -1,0 +1,69 @@
+# Stack file for Portainer.
+#
+# Portainer's web editor has no build context, so this file expects an image
+# that already exists on the host. Build it once over SSH:
+#
+#     cd /opt/matam && docker build -t matam-alredha:1.0 .
+#
+# then paste this file into Portainer and set the variables in its
+# Environment section. See DEPLOY.md for the full walkthrough.
+
+services:
+  matam:
+    image: matam-alredha:1.0
+    container_name: matam-alredha
+    restart: unless-stopped
+
+    environment:
+      DATA_DIR: /data
+      LISTEN_ADDR: ":8080"
+      TZ: Asia/Bahrain
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "true"
+
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ELECTIONS_USERNAME: ${ELECTIONS_USERNAME}
+      ELECTIONS_PASSWORD: ${ELECTIONS_PASSWORD}
+
+      ADMIN_PATH: ${ADMIN_PATH}
+      ELECTIONS_PATH: ${ELECTIONS_PATH}
+
+      ADMIN_PASSWORD_RESET: "false"
+      ELECTIONS_PASSWORD_RESET: "false"
+
+      MAX_UPLOAD_MB: "5"
+      REGISTER_LIMIT_PER_HOUR: "40"
+
+    volumes:
+      - matam-data:/data
+
+    healthcheck:
+      test: ["CMD", "/app/matam", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    security_opt:
+      - no-new-privileges:true
+
+    networks:
+      - matam
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: matam-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - matam
+    networks:
+      - matam
+
+networks:
+  matam:
+    driver: bridge
+
+volumes:
+  matam-data:
