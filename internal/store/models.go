@@ -92,7 +92,11 @@ type Role struct {
 	Description       string `json:"description"`
 	WinnersCount      int    `json:"winners_count"`
 	SelectionsAllowed int    `json:"selections_allowed"`
-	SortOrder         int    `json:"sort_order"`
+	// MinAge is the minimum age a member must have reached to stand for this
+	// post. Defaults to DefaultMinCandidateAge when the committee has not set
+	// something different.
+	MinAge    int `json:"min_age"`
+	SortOrder int `json:"sort_order"`
 }
 
 type Participant struct {

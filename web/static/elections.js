@@ -115,7 +115,7 @@ function renderRoles() {
       el("div", { class: "fieldrow__main" },
         el("div", { class: "fieldrow__label", text: role.name }),
         el("div", { class: "fieldrow__key" },
-          `عدد الفائزين: ${role.winners_count} - عدد الاختيارات المسموحة: ${role.selections_allowed}`)
+          `عدد الفائزين: ${role.winners_count} - عدد الاختيارات المسموحة: ${role.selections_allowed} - الحد الأدنى للعمر: ${role.min_age || 21} سنة`)
       ),
       el("div", { class: "fieldrow__ctrl" },
         el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: () => editRole(role) }, "تحرير"),
@@ -129,7 +129,7 @@ $("#addRoleBtn").addEventListener("click", () => editRole(null));
 
 function editRole(role) {
   const isNew = !role;
-  const model = role || { name: "", description: "", winners_count: 1, selections_allowed: 1, sort_order: 0 };
+  const model = role || { name: "", description: "", winners_count: 1, selections_allowed: 1, min_age: 21, sort_order: 0 };
   const dialog = buildDialog(isNew ? "إضافة منصب" : "تحرير المنصب",
     el("div", {},
       el("div", { class: "notice notice--error", id: "roleNotice", hidden: true }),
@@ -150,6 +150,11 @@ function editRole(role) {
           el("label", { class: "label", for: "rSelections", text: "عدد الاختيارات المسموحة" }),
           el("input", { id: "rSelections", type: "number", min: "1", value: model.selections_allowed })
         )
+      ),
+      el("div", { class: "field" },
+        el("label", { class: "label", for: "rMinAge", text: "الحد الأدنى لعمر المترشح" }),
+        el("input", { id: "rMinAge", type: "number", min: "18", max: "120", value: model.min_age || 21 }),
+        el("p", { class: "help", text: "بالسنوات. القيمة الافتراضية 21 سنة. يُحسب العمر من تاريخ الميلاد المسجّل للعضو." })
       )
     ));
 
@@ -161,6 +166,7 @@ function editRole(role) {
       description: dialog.querySelector("#rDesc").value,
       winners_count: Number(dialog.querySelector("#rWinners").value) || 1,
       selections_allowed: Number(dialog.querySelector("#rSelections").value) || 1,
+      min_age: Number(dialog.querySelector("#rMinAge").value) || 21,
       sort_order: model.sort_order || 0,
     };
     try {
@@ -214,6 +220,9 @@ function candidateCard(candidate) {
     photo,
     el("div", { class: "candidate__body" },
       el("h3", { class: "candidate__name", text: candidate.name }),
+      candidate.candidacy_id
+        ? el("span", { class: "pill pill--ok", text: "عبر طلب ترشح" })
+        : el("span", { class: "pill pill--warn", text: "مضاف يدوياً" }),
       candidate.description ? el("p", { class: "candidate__desc", text: candidate.description }) : null,
       el("div", { class: "btn-row", style: "margin-top:0.75rem" },
         el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: () => editCandidate(candidate) }, "تحرير"),
@@ -244,9 +253,13 @@ function editCandidate(candidate) {
     )
   );
 
-  const dialog = buildDialog(isNew ? "إضافة مرشح" : "تحرير بيانات المرشح",
+  const dialog = buildDialog(isNew ? "إضافة مرشح يدوياً" : "تحرير بيانات المرشح",
     el("div", {},
       el("div", { class: "notice notice--error", id: "candNotice", hidden: true }),
+      isNew
+        ? el("div", { class: "notice notice--warn" },
+            "إضافة استثنائية خارج مسار طلبات الترشح. لن يمر هذا المرشح بمراجعة، ولن يُتحقق من شرط السن، ولن يرتبط بحساب عضو.")
+        : null,
       el("div", { class: "field" },
         el("label", { class: "label", for: "cName", text: "اسم المرشح" }),
         el("input", { id: "cName", type: "text", value: model.name })

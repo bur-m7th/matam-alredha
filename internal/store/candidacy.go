@@ -18,8 +18,9 @@ const (
 	CandidacyReturned  = "returned"
 )
 
-// MinCandidateAge is the age a member must have reached to stand.
-const MinCandidateAge = 21
+// DefaultMinCandidateAge applies to any post whose minimum the committee has
+// not set explicitly.
+const DefaultMinCandidateAge = 21
 
 // Gate states for the candidacy window.
 const (
@@ -108,15 +109,52 @@ func CandidateAge(dob string) int {
 	return years
 }
 
-// EligibleToStand reports whether a member may submit a candidacy, and why not
-// when they may not.
+// EligibleToStand reports whether a member may stand for anything at all.
+//
+// Each post carries its own minimum age, so a member qualifies overall as soon
+// as they meet the lowest minimum among the posts on offer. Which particular
+// posts they may choose is decided separately by EligibleForRole.
 func (s *Store) EligibleToStand(u User) (bool, string) {
 	if u.Status != MemberActive {
 		return false, "يرجى مراجعة المأتم"
 	}
+	roles, err := s.Roles()
+	if err != nil {
+		return false, "تعذر تحميل المناصب"
+	}
+	if len(roles) == 0 {
+		return false, "لم تُحدَّد المناصب بعد"
+	}
+
 	age := CandidateAge(u.DOB)
-	if age < MinCandidateAge {
-		return false, "يشترط أن يكون عمر المترشح " + strconv.Itoa(MinCandidateAge) + " سنة فأكثر"
+	lowest := 0
+	for _, r := range roles {
+		min := r.MinAge
+		if min <= 0 {
+			min = DefaultMinCandidateAge
+		}
+		if lowest == 0 || min < lowest {
+			lowest = min
+		}
+		if age >= min {
+			return true, ""
+		}
+	}
+	return false, "يشترط أن يكون عمر المترشح " + strconv.Itoa(lowest) + " سنة فأكثر"
+}
+
+// EligibleForRole checks a member against one specific post.
+func (s *Store) EligibleForRole(u User, r Role) (bool, string) {
+	if u.Status != MemberActive {
+		return false, "يرجى مراجعة المأتم"
+	}
+	min := r.MinAge
+	if min <= 0 {
+		min = DefaultMinCandidateAge
+	}
+	if CandidateAge(u.DOB) < min {
+		return false, "يشترط لمنصب " + r.Name + " أن يكون عمر المترشح " +
+			strconv.Itoa(min) + " سنة فأكثر"
 	}
 	return true, ""
 }
@@ -193,11 +231,12 @@ func (s *Store) SubmitCandidacy(u User, roleID int64, photo, thumb string) error
 	if s.CandidacyGate() != GateOpen {
 		return errors.New("باب الترشح مغلق حالياً")
 	}
-	if ok, why := s.EligibleToStand(u); !ok {
-		return errors.New(why)
-	}
-	if _, err := s.Role(roleID); err != nil {
+	role, err := s.Role(roleID)
+	if err != nil {
 		return errors.New("المنصب المختار غير موجود")
+	}
+	if ok, why := s.EligibleForRole(u, role); !ok {
+		return errors.New(why)
 	}
 
 	existing, found, err := s.CandidacyForUser(u.ID)
@@ -205,6 +244,7 @@ func (s *Store) SubmitCandidacy(u User, roleID int64, photo, thumb string) error
 		return err
 	}
 	now := Now()
+	_ = role
 
 	if !found {
 		_, err := s.DB.Exec(`INSERT INTO candidacies
@@ -241,8 +281,18 @@ func (s *Store) ChangeCandidacyRole(id, roleID int64, byMember bool, actor strin
 	if err != nil {
 		return errors.New("طلب الترشح غير موجود")
 	}
-	if _, err := s.Role(roleID); err != nil {
+	role, err := s.Role(roleID)
+	if err != nil {
 		return errors.New("المنصب المختار غير موجود")
+	}
+	// The age requirement is a rule of the post, not a preference, so it binds
+	// the committee's own overrides too.
+	u, err := s.User(c.UserID)
+	if err != nil {
+		return errors.New("العضو غير موجود")
+	}
+	if ok, why := s.EligibleForRole(u, role); !ok {
+		return errors.New(why)
 	}
 	if byMember && c.Status == CandidacyAccepted {
 		return errors.New("لا يمكن تغيير المنصب بعد قبول الترشح. يرجى مراجعة لجنة الانتخابات")

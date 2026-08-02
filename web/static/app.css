@@ -780,3 +780,11 @@ hr.rule { border: none; border-top: 1px solid var(--sand); margin: 1.5rem 0; }
 
 .tabs--sub { border: 0; gap: 0.35rem; }
 .tabs--sub .tab { font-size: 0.85rem; padding: 0.4rem 0.8rem; }
+
+
+/* A card for a secondary or exceptional action, visually stepped back from the
+   normal path so it does not read as the default thing to do. */
+.card--muted {
+  background: color-mix(in srgb, var(--sand) 22%, transparent);
+  border-style: dashed;
+}

@@ -1,288 +1,227 @@
-# Deploying to Portainer with Cloudflare
+# Deploying with Portainer on TrueNAS + Cloudflare — no terminal required
 
-This walks through putting the system on your own server, published on your
-domain through Cloudflare, with no ports open to the internet.
+This is written for doing everything through a browser: TrueNAS's web UI,
+Portainer's web UI, and the Cloudflare dashboard. No SSH, no command line.
 
-**What you need:** a server (a small VPS or a machine at the ma'tam), Docker and
-Portainer already installed on it, SSH access to that server, and your domain
-already added to your Cloudflare account.
+Your domain: **malkiyaclub.online**
+Your subdomain: **matam-alredha.malkiyaclub.online**
 
-Throughout, replace `matam.example.org` with the hostname you actually want and
-`/opt/matam` with wherever you prefer to keep the source.
+Two files matter, and they're different things — don't mix them up:
 
----
-
-## Why a tunnel rather than an open port
-
-The setup below uses a **Cloudflare Tunnel**. A small container on your server
-dials *out* to Cloudflare and keeps that connection open; Cloudflare sends
-visitors down it. Nothing listens on a public port.
-
-That matters here for three practical reasons:
-
-- No port forwarding on the router, so this works on a home or office
-  connection, and on an ISP that hands out shared addresses.
-- Your server's real address is never published.
-- HTTPS is handled by Cloudflare, so there is no certificate to install or renew.
-
-If you would rather run your own reverse proxy with your own certificate, skip
-to [Alternative: your own reverse proxy](#alternative-your-own-reverse-proxy).
+| File | Used for |
+|---|---|
+| `matam-alredha-build-context.tar.gz` | **Upload this into Portainer** to build the image |
+| `matam-alredha.tar.gz` | A plain copy of the project, for reading or backup only |
 
 ---
 
-## Step 1 — Put the source on the server
+## Step 1 — Build the image in Portainer
 
-From your own computer:
+1. Open Portainer (usually `https://your-truenas-ip:9443` or wherever you access
+   it) and go into the environment that manages your Docker apps.
+2. In the left sidebar: **Images**.
+3. **Build a new image.**
+4. Give it a name: `matam-alredha:1.0`
+5. Under **Build method**, choose **Upload**.
+6. Click the upload box and select **`matam-alredha-build-context.tar.gz`** —
+   the first file above. Leave the "Dockerfile name" field as the default
+   (`Dockerfile`); this archive is arranged so the default just works.
+7. **Build the image.**
 
-```bash
-scp matam-alredha.tar.gz youruser@your-server:/tmp/
-```
+This step compiles the whole Go application, so it takes a few minutes the
+first time. Portainer shows a build log — watch for a line near the end saying
+the image was built successfully. If it fails partway, scroll up in that log
+and read the first red line; that's almost always the real error, not the last
+line shown.
 
-Then on the server:
+When it finishes, go to **Images** and confirm `matam-alredha:1.0` is listed.
 
-```bash
-ssh youruser@your-server
-sudo mkdir -p /opt/matam
-sudo tar xzf /tmp/matam-alredha.tar.gz -C /opt/matam --strip-components=1
-cd /opt/matam
-ls        # you should see Dockerfile, docker-compose.yml, internal/, web/
-```
-
----
-
-## Step 2 — Build the image
-
-Portainer's stack editor has no build context of its own, so build the image
-once here. This takes a few minutes the first time.
-
-```bash
-cd /opt/matam
-sudo docker build -t matam-alredha:1.0 .
-```
-
-Confirm it exists:
-
-```bash
-sudo docker images | grep matam-alredha
-```
-
-> **When you update the project later,** replace the source, then build with a
-> new tag — `matam-alredha:1.1` — and change the tag in the Portainer stack.
-> Using a new tag each time makes it obvious which version is running and lets
-> you roll back by pointing at the old tag.
+> **Updating later:** when you have a newer version of the project, repeat this
+> step with a new tag — `matam-alredha:1.1` — rather than overwriting `1.0`.
+> That way you can always redeploy the old tag if something goes wrong.
 
 ---
 
-## Step 3 — Create the Cloudflare tunnel
+## Step 2 — Create the Cloudflare tunnel
 
-1. Open the [Cloudflare dashboard](https://dash.cloudflare.com) and pick your
-   domain.
-2. In the left sidebar go to **Zero Trust**, then **Networks → Tunnels**.
-3. **Create a tunnel** → choose **Cloudflared** → give it a name such as
-   `matam` → **Save**.
-4. Cloudflare shows an install command containing a long token. **Copy just the
-   token** — the long string after `--token`. Do not run the command; the
-   container will use the token instead.
-5. On the **Route Traffic** step (also reachable later under **Public
-   Hostnames**), add:
+1. Open [dash.cloudflare.com](https://dash.cloudflare.com) and select
+   **malkiyaclub.online**.
+2. Left sidebar → **Zero Trust** → **Networks** → **Tunnels**.
+3. **Create a tunnel** → **Cloudflared** → name it `matam` → **Save**.
+4. Cloudflare shows an install command with a long token in it. **Copy only the
+   token** — the text after `--token`. You will paste it into Portainer, not
+   run any command.
+5. Still on the tunnel setup, go to **Public Hostnames** → **Add a public
+   hostname**:
 
    | Field | Value |
    |---|---|
-   | Subdomain | `matam` (or leave blank for the root domain) |
-   | Domain | `example.org` |
+   | Subdomain | `matam-alredha` |
+   | Domain | `malkiyaclub.online` |
    | Type | `HTTP` |
    | URL | `matam:8080` |
 
-   `matam` there is the container name, not a domain. The tunnel container and
-   the application share a Docker network, so it resolves by name.
+   `matam` is the container name inside the stack you're about to create, not a
+   real address — Docker resolves it internally. Type is `HTTP`, not `HTTPS`;
+   Cloudflare still serves your visitors over HTTPS, this inner hop just
+   doesn't need its own certificate.
 
-   **Type is HTTP, not HTTPS.** The hop from the tunnel container to the
-   application happens inside Docker. Cloudflare still serves your visitors over
-   HTTPS.
-
-6. **Save**. Cloudflare creates the DNS record for you — there is nothing to add
-   by hand.
+6. **Save.** Cloudflare adds the DNS record on its own — nothing to do in DNS
+   settings by hand.
 
 ---
 
-## Step 4 — Deploy the stack in Portainer
+## Step 3 — Deploy the stack in Portainer
 
-1. Open Portainer → **Stacks** → **Add stack**.
-2. Name it `matam`.
-3. Choose **Web editor** and paste the contents of
-   `docker-compose.portainer.yml` from the project.
-4. Scroll to **Environment variables** and add these, using **Advanced mode** to
-   paste them all at once:
+1. **Stacks** → **Add stack**.
+2. Name: `matam`.
+3. **Web editor** → paste the contents of `docker-compose.portainer.yml` from
+   the project (open it in any text editor to copy it — Notepad, TextEdit,
+   whatever you have).
+4. Scroll down to **Environment variables**. Use the **Advanced mode** toggle
+   so you can paste all of these at once, then fill in your own values on the
+   right-hand side:
 
 ```
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=choose-a-strong-password-here
+ADMIN_PASSWORD=choose-a-strong-password
 ELECTIONS_USERNAME=elections
-ELECTIONS_PASSWORD=choose-a-different-one-here
-ADMIN_PATH=pick-your-own-secret-path
-ELECTIONS_PATH=pick-another-secret-path
-CLOUDFLARE_TUNNEL_TOKEN=paste-the-token-from-step-3
+ELECTIONS_PASSWORD=choose-a-different-strong-password
+ADMIN_PATH=pick-your-own-secret-word
+ELECTIONS_PATH=pick-a-different-secret-word
+CLOUDFLARE_TUNNEL_TOKEN=paste-the-token-from-step-2
 ```
+
+   `ADMIN_PATH` and `ELECTIONS_PATH` are **not** related to your domain or
+   subdomain — they're the hidden dashboard addresses inside the site, e.g.
+   `matam-alredha.malkiyaclub.online/ADMIN_PATH`. Pick two short, unguessable
+   words. Letters, numbers, and hyphens only.
 
 5. **Deploy the stack.**
 
-Two containers should come up: `matam-alredha` and `matam-tunnel`. Within a
-minute the application container shows **healthy**.
+Portainer creates the data volume automatically — nothing to set up on the
+TrueNAS storage side for this. Give it a minute, then check **Containers**:
+you should see `matam-alredha` and `matam-tunnel` both running, and
+`matam-alredha` should show a green **healthy** status once it settles.
 
-> **Set the passwords and paths before the first deploy.** The two accounts are
-> created on the very first start and are not recreated afterwards, so changing
-> these variables later has no effect. Recovery is documented in the README
-> under استعادة الدخول.
+> **Set your passwords and paths before this first deploy.** The two dashboard
+> accounts are created only on the very first start. Changing these
+> environment variables afterwards and redeploying the stack has no effect —
+> recovering a lost password afterward is covered in the README, but it's
+> simpler to get it right now.
 
 ---
 
-## Step 5 — Check it
+## Step 4 — Check it
 
-Visit `https://matam.example.org`. You should get the member login page.
+Visit:
 
-Then check your dashboards, at whatever you set `ADMIN_PATH` and
+```
+https://matam-alredha.malkiyaclub.online
+```
+
+You should land on the member login page.
+
+Then your two dashboards, using whatever you set `ADMIN_PATH` /
 `ELECTIONS_PATH` to:
 
 ```
-https://matam.example.org/your-secret-admin-path
-https://matam.example.org/your-secret-elections-path
+https://matam-alredha.malkiyaclub.online/your-admin-path
+https://matam-alredha.malkiyaclub.online/your-elections-path
 ```
 
-You can also reach them without the URL: press and hold the small brass diamond
-at the foot of any page on a phone, or click it five times on a computer.
+You can also skip typing those: press and hold the small brass diamond at the
+bottom of any page on a phone, or click it five times on a computer, and log in
+through the box that opens.
 
-**Confirm the import worked.** In Portainer open the `matam-alredha` container →
-**Logs**. You should see a line reporting that 378 existing members were
-imported. That happens only on the very first start.
+**Confirm the member import worked.** In Portainer, click into the
+`matam-alredha` container → **Logs**. Somewhere near the top you should see a
+line reporting that 378 existing members were imported. That only happens once,
+on the very first start.
 
 ---
 
-## Step 6 — Cloudflare settings worth adjusting
+## Step 5 — Cloudflare settings worth checking
 
-In the dashboard for your domain:
+Still in the dashboard for malkiyaclub.online:
 
-**SSL/TLS → Overview** — set encryption mode to **Full**. With a tunnel this is
-handled for you, but check it is not on *Flexible*.
+**SSL/TLS → Overview** — encryption mode should be **Full**.
 
-**SSL/TLS → Edge Certificates** — turn on **Always Use HTTPS**. The session
-cookies are marked `Secure`, so a visitor who lands on `http://` would not stay
-logged in.
+**SSL/TLS → Edge Certificates** — turn on **Always Use HTTPS**. This matters:
+the login cookies are marked so they're only sent over HTTPS, so a visitor who
+somehow lands on plain `http://` will look logged out even after signing in.
 
-**Speed → Optimization** — leave Rocket Loader **off**. It reorders JavaScript
-and can break the pages.
+**Speed → Optimization** — leave **Rocket Loader** off. It rewrites JavaScript
+and will break the pages here.
 
-**Caching → Configuration** — the default is fine. The application already sends
-its own caching instructions: photographs are cached for a year, and pages and
-API responses are not cached at all.
+### Optional: lock the dashboards behind a Cloudflare login too
 
-### Optional: shield the dashboards further
-
-Zero Trust can require a second login before the dashboard is even reachable.
 Under **Zero Trust → Access → Applications**, add a self-hosted application for
-`matam.example.org/your-secret-admin-path` and add a policy allowing only your
-own email addresses. Cloudflare then emails a one-time code before anyone sees
-the page.
-
-This is worth doing. The secret path stops members stumbling in; it does not
-stop someone determined.
+`matam-alredha.malkiyaclub.online/your-admin-path` (and the same for elections),
+with a policy that only allows your own email address. Cloudflare then asks for
+a one-time code sent to your email before the dashboard login page even loads —
+a second lock in front of the first one.
 
 ---
 
 ## Backups
 
-Everything that matters lives in the `matam-data` volume: the database, the
-uploaded photographs, the print template, and the generated spreadsheet.
+Everything that matters — the database, uploaded candidate photos, the print
+template, and the generated spreadsheet — lives in the `matam-data` volume
+Portainer created in Step 3.
 
-In Portainer: **Volumes → matam-data** shows where it sits on disk. To take a
-copy over SSH:
+In Portainer: **Volumes** → find `matam-data` (it will be named something like
+`matam_matam-data`) — this tells you where it lives, but you don't need that
+path for a GUI backup.
 
-```bash
-sudo docker run --rm \
-  -v matam-data:/data \
-  -v /opt/backups:/backup \
-  debian:bookworm-slim \
-  tar czf /backup/matam-$(date +%F).tar.gz -C /data .
-```
+The most reliable GUI backup on TrueNAS: since Docker apps store their data on
+whatever pool you assigned to the Docker/apps service, TrueNAS's own snapshot
+schedule for that pool automatically covers this volume along with everything
+else Docker-related. Set this up once under **Data Protection → Periodic
+Snapshot Tasks** for the apps pool, with a daily schedule, and you have a
+restorable copy without touching Docker at all.
 
-Run that nightly with cron. To restore, stop the stack, then:
-
-```bash
-sudo docker run --rm \
-  -v matam-data:/data \
-  -v /opt/backups:/backup \
-  debian:bookworm-slim \
-  sh -c "rm -rf /data/* && tar xzf /backup/matam-2026-08-01.tar.gz -C /data"
-```
-
-Downloading the Excel file from the dashboard is a useful habit, but it is not a
-backup: it holds the members and nothing else — no candidacies, no photographs,
-no votes. Take a full copy of the volume before and after election day.
+Downloading the Excel file from the membership dashboard is a good habit but is
+**not** a backup on its own — it holds the members only, not candidacies,
+photographs, or votes. Take a real snapshot before and after election day.
 
 ---
 
 ## Updating later
 
-```bash
-cd /opt/matam
-sudo tar xzf /tmp/matam-alredha-new.tar.gz -C /opt/matam --strip-components=1
-sudo docker build -t matam-alredha:1.1 .
-```
+1. Build a new image tag in Portainer (**Images → Build a new image**, same as
+   Step 1, tagged e.g. `matam-alredha:1.1`) from the newer build-context file.
+2. **Stacks → matam → Editor**, change `image: matam-alredha:1.0` to
+   `matam-alredha:1.1`.
+3. **Update the stack.**
 
-Then in Portainer: **Stacks → matam → Editor**, change the image tag to `1.1`,
-and **Update the stack**.
-
-Your data is untouched — it lives in the volume, not the image. The application
-adds any new database columns itself on startup.
+Your data is untouched — it lives in the volume, not the image. Any new
+database columns are added automatically when the new version starts.
 
 ---
 
 ## Troubleshooting
 
-**The site shows a Cloudflare error 502 or 1033.**
-The tunnel cannot reach the application. Check the public hostname points at
-`matam:8080` with type `HTTP`, and that both containers are running and on the
-same network. In Portainer, the `matam-tunnel` logs will say what it is failing
-to connect to.
+**Cloudflare shows error 502 or 1033.**
+The tunnel can't reach the app. Recheck the public hostname: type `HTTP`, URL
+exactly `matam:8080`. In Portainer, check both containers are in the **Running**
+state and stopped/exited nowhere.
 
-**Logging in appears to work but you are immediately logged out again.**
-You reached the site over `http://`. Turn on **Always Use HTTPS**. Cookies are
-marked `Secure` and a plain HTTP page cannot keep them.
+**You log in but get logged straight back out.**
+Check **Always Use HTTPS** is on in Cloudflare.
 
-**"عدد محاولات الدخول تجاوز الحد" appears for everyone at once.**
-`TRUST_PROXY` is not set to `true`, so every visitor looks like the tunnel and
-they share one rate limit. Set it and redeploy.
+**Everyone gets "too many login attempts" even on a first try.**
+`TRUST_PROXY` should be `"true"` in the stack — it already is in
+`docker-compose.portainer.yml`, so check you didn't accidentally overwrite it in
+the environment variables section.
 
-**Photo uploads fail.**
-Check the container's Logs in Portainer. If it reports a permission problem, the
-volume was created before the image set its ownership — remove the stack (keep
-the volume), then redeploy.
+**Photo uploads fail with a server error.**
+Open the `matam-alredha` container's **Logs**. If it mentions a permissions
+problem, remove the stack (Portainer will ask separately about the volume —
+say no, keep it) and redeploy; the image sets correct ownership on first start.
 
-**You cannot get into a dashboard.**
-Use the password reset described in the README: set `ADMIN_PASSWORD` to a new
-value and `ADMIN_PASSWORD_RESET` to `true` in the stack's environment
-variables, update the stack, then set it back to `false` and update again.
-
----
-
-## Alternative: your own reverse proxy
-
-If you would rather not use a tunnel, delete the `cloudflared` service from the
-stack, uncomment the `ports` line so the application listens on
-`127.0.0.1:8080`, and put Nginx or Caddy in front of it.
-
-Caddy is the shorter path, since it obtains a certificate on its own:
-
-```
-matam.example.org {
-    reverse_proxy 127.0.0.1:8080
-    request_body {
-        max_size 8MB
-    }
-}
-```
-
-Keep `TRUST_PROXY=true`, and in Cloudflare's DNS set the record for the host to
-**Proxied** (the orange cloud) so your server's address stays hidden.
-
-With this arrangement you do need to forward ports 80 and 443 on the router, and
-your server must have a reachable address.
+**You lost a dashboard password.**
+In the stack's environment variables, set `ADMIN_PASSWORD` to a new value and
+`ADMIN_PASSWORD_RESET` to `true`, then **Update the stack**. Once you've
+confirmed the new password works, set `ADMIN_PASSWORD_RESET` back to `false`
+and update again — leaving it `true` resets the password on every restart.

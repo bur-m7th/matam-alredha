@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS roles (
 	description       TEXT NOT NULL DEFAULT '',
 	winners_count     INTEGER NOT NULL DEFAULT 1,
 	selections_allowed INTEGER NOT NULL DEFAULT 1,
+	min_age           INTEGER NOT NULL DEFAULT 21,
 	sort_order        INTEGER NOT NULL DEFAULT 0
 );
 
@@ -221,6 +222,7 @@ func (s *Store) migrate() error {
 		{"participants", "candidacy_id", "INTEGER NOT NULL DEFAULT 0"},
 		{"participants", "thumb", "TEXT NOT NULL DEFAULT ''"},
 		{"participants", "created_at", "TEXT NOT NULL DEFAULT ''"},
+		{"roles", "min_age", "INTEGER NOT NULL DEFAULT 21"},
 	}
 	if err := s.widenApplicationStatus(); err != nil {
 		return err

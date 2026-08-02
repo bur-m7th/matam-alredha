@@ -84,13 +84,22 @@ function render() {
 function formCard() {
   const isEdit = Boolean(view.mine);
 
+  // Each post carries its own minimum age. A post the member is too young for
+  // stays visible, but disabled and labelled, so the requirement is plain
+  // rather than surfacing as a rejection after they fill the form in.
+  const elig = view.role_eligibility || {};
   const roleSelect = el("select", { id: "roleSel" },
     el("option", { value: "", text: "اختر المنصب" }),
-    view.roles.map((r) => el("option", {
-      value: String(r.id),
-      text: r.name,
-      selected: view.mine && String(view.mine.role_id) === String(r.id) ? "selected" : undefined,
-    }))
+    view.roles.map((r) => {
+      const e = elig[String(r.id)] || { eligible: true };
+      const min = r.min_age || view.min_age;
+      return el("option", {
+        value: String(r.id),
+        text: e.eligible ? r.name : `${r.name} — يشترط ${min} سنة فأكثر`,
+        disabled: e.eligible ? undefined : "disabled",
+        selected: view.mine && String(view.mine.role_id) === String(r.id) ? "selected" : undefined,
+      });
+    })
   );
 
   const preview = el("div", { id: "preview", style: "width:9rem" },
@@ -152,7 +161,8 @@ function formCard() {
 
     el("div", { class: "field" },
       el("label", { class: "label", for: "roleSel", text: "المنصب المترشح له" }),
-      roleSelect
+      roleSelect,
+      el("p", { class: "help", text: "لكل منصب حد أدنى لعمر المترشح. المناصب غير المتاحة لك مبيَّن سببها." })
     ),
 
     el("div", { class: "field" },

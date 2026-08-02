@@ -102,7 +102,7 @@ func (s *Store) SingleSelections() int {
 
 func (s *Store) Roles() ([]Role, error) {
 	rows, err := s.DB.Query(
-		`SELECT id, name, description, winners_count, selections_allowed, sort_order
+		`SELECT id, name, description, winners_count, selections_allowed, min_age, sort_order
 		 FROM roles ORDER BY sort_order, id`)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (s *Store) Roles() ([]Role, error) {
 	for rows.Next() {
 		var r Role
 		if err := rows.Scan(&r.ID, &r.Name, &r.Description, &r.WinnersCount,
-			&r.SelectionsAllowed, &r.SortOrder); err != nil {
+			&r.SelectionsAllowed, &r.MinAge, &r.SortOrder); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -123,9 +123,10 @@ func (s *Store) Roles() ([]Role, error) {
 func (s *Store) Role(id int64) (Role, error) {
 	var r Role
 	err := s.DB.QueryRow(
-		`SELECT id, name, description, winners_count, selections_allowed, sort_order
+		`SELECT id, name, description, winners_count, selections_allowed, min_age, sort_order
 		 FROM roles WHERE id = ?`, id).
-		Scan(&r.ID, &r.Name, &r.Description, &r.WinnersCount, &r.SelectionsAllowed, &r.SortOrder)
+		Scan(&r.ID, &r.Name, &r.Description, &r.WinnersCount, &r.SelectionsAllowed,
+			&r.MinAge, &r.SortOrder)
 	return r, err
 }
 
@@ -141,6 +142,14 @@ func normalizeRole(r *Role) error {
 	if r.SelectionsAllowed < 1 {
 		r.SelectionsAllowed = r.WinnersCount
 	}
+	// An unset or nonsensical minimum falls back to the standing default rather
+	// than silently admitting everyone.
+	if r.MinAge <= 0 {
+		r.MinAge = DefaultMinCandidateAge
+	}
+	if r.MinAge > 120 {
+		return errors.New("الحد الأدنى للعمر غير منطقي")
+	}
 	return nil
 }
 
@@ -151,9 +160,9 @@ func (s *Store) CreateRole(r Role, actor string) (Role, error) {
 	var maxOrder int
 	_ = s.DB.QueryRow(`SELECT COALESCE(MAX(sort_order),0) FROM roles`).Scan(&maxOrder)
 	res, err := s.DB.Exec(
-		`INSERT INTO roles(name, description, winners_count, selections_allowed, sort_order)
-		 VALUES (?,?,?,?,?)`,
-		r.Name, r.Description, r.WinnersCount, r.SelectionsAllowed, maxOrder+10)
+		`INSERT INTO roles(name, description, winners_count, selections_allowed, min_age, sort_order)
+		 VALUES (?,?,?,?,?,?)`,
+		r.Name, r.Description, r.WinnersCount, r.SelectionsAllowed, r.MinAge, maxOrder+10)
 	if err != nil {
 		return r, err
 	}
@@ -168,9 +177,9 @@ func (s *Store) UpdateRole(r Role, actor string) error {
 		return err
 	}
 	_, err := s.DB.Exec(
-		`UPDATE roles SET name=?, description=?, winners_count=?, selections_allowed=?, sort_order=?
-		 WHERE id=?`,
-		r.Name, r.Description, r.WinnersCount, r.SelectionsAllowed, r.SortOrder, r.ID)
+		`UPDATE roles SET name=?, description=?, winners_count=?, selections_allowed=?,
+		 min_age=?, sort_order=? WHERE id=?`,
+		r.Name, r.Description, r.WinnersCount, r.SelectionsAllowed, r.MinAge, r.SortOrder, r.ID)
 	if err == nil {
 		s.Audit(actor, "update_role", r.Name)
 	}

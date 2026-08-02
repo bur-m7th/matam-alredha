@@ -15,6 +15,13 @@ import (
 
 // ---------------------------------------------------------------- member side
 
+// roleEligibility explains, per post, whether this member may choose it.
+type roleEligibility struct {
+	Eligible bool   `json:"eligible"`
+	Reason   string `json:"reason"`
+	MinAge   int    `json:"min_age"`
+}
+
 type candidacyView struct {
 	GateOpen  bool             `json:"gate_open"`
 	Eligible  bool             `json:"eligible"`
@@ -28,6 +35,8 @@ type candidacyView struct {
 	PhotoMin  int              `json:"photo_min"`
 	PhotoMax  int              `json:"photo_max"`
 	PhotoSize int              `json:"photo_max_bytes"`
+
+	RoleEligibility map[string]roleEligibility `json:"role_eligibility"`
 }
 
 func (s *Server) handleMyCandidacy(w http.ResponseWriter, r *http.Request, u store.User) {
@@ -38,7 +47,7 @@ func (s *Server) handleMyCandidacy(w http.ResponseWriter, r *http.Request, u sto
 		Reason:    reason,
 		Intro:     s.st.Setting("candidacy_intro", ""),
 		Name:      u.Name,
-		MinAge:    store.MinCandidateAge,
+		MinAge:    store.DefaultMinCandidateAge,
 		PhotoMin:  imaging.MinSide,
 		PhotoMax:  imaging.MaxSide,
 		PhotoSize: imaging.MaxUploadBytes,
@@ -49,6 +58,18 @@ func (s *Server) handleMyCandidacy(w http.ResponseWriter, r *http.Request, u sto
 		return
 	}
 	view.Roles = roles
+
+	// The page needs to know which posts this member is old enough for, so it
+	// can grey out the rest and say why rather than failing on submit.
+	view.RoleEligibility = make(map[string]roleEligibility, len(roles))
+	for _, r := range roles {
+		okRole, why := s.st.EligibleForRole(u, r)
+		view.RoleEligibility[strconv.FormatInt(r.ID, 10)] = roleEligibility{
+			Eligible: okRole,
+			Reason:   why,
+			MinAge:   r.MinAge,
+		}
+	}
 
 	c, found, err := s.st.CandidacyForUser(u.ID)
 	if err != nil {
