@@ -29,6 +29,8 @@ var extendedColumns = []xlsxw.Column{
 	{Header: "منتسب لمؤسسة أخرى", Width: 16},
 	{Header: "المؤسسة", Width: 20},
 	{Header: "تاريخ الاعتماد", Width: 14},
+	{Header: "حالة العضوية", Width: 14},
+	{Header: "ملاحظة الحالة", Width: 28},
 }
 
 func yesNo(b bool) string {
@@ -74,6 +76,8 @@ func (s *Store) MembersSheet() (xlsxw.Sheet, error) {
 			yesNo(u.Affiliated),
 			u.Affiliation,
 			shortDate(u.CreatedAt),
+			MemberStatusLabel(u.Status),
+			u.StatusNote,
 		}
 		for _, f := range custom {
 			row = append(row, u.Extra[f.Key])

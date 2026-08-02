@@ -77,6 +77,9 @@ type User struct {
 	Person
 	ID            int64  `json:"id"`
 	MeetingNo     string `json:"meeting_no"`
+	Status        string `json:"status"`
+	StatusNote    string `json:"status_note"`
+	StatusAt      string `json:"status_at"`
 	ApplicationID int64  `json:"application_id"`
 	Source        string `json:"source"`
 	CreatedAt     string `json:"created_at"`

@@ -16,6 +16,16 @@ function render(state) {
   $("#memberName").textContent = state.name || "";
   clear(content);
 
+  // A withheld membership takes precedence over every other state.
+  if (state.suspended) {
+    content.append(card(
+      el("h2", { text: "عضويتك موقوفة حالياً" }),
+      el("p", { class: "lede", text: state.message || "يرجى مراجعة المأتم", style: "white-space:pre-wrap" }),
+      el("p", { class: "help", text: "لا يمكن المشاركة في التصويت أو الخدمات حتى تُراجع الإدارة حالتك." })
+    ));
+    return;
+  }
+
   if (state.has_voted) {
     content.append(card(
       el("h2", { text: "تم تسجيل تصويتك" }),

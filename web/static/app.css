@@ -673,3 +673,24 @@ hr.rule { border: none; border-top: 1px solid var(--sand); margin: 1.5rem 0; }
 }
 
 .crest:focus { outline: none; }
+
+
+/* ---- membership status badges ---- */
+.pill {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.pill--ok   { background: color-mix(in srgb, var(--pine) 12%, transparent);   color: var(--pine);   border-color: var(--pine); }
+.pill--warn { background: color-mix(in srgb, var(--brass) 18%, transparent);  color: #6B5218;       border-color: var(--brass); }
+.pill--bad  { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); border-color: var(--danger); }
+
+/* A vertical variant of the yes/no choice control, for three-way status picks. */
+.choice--stack {
+  grid-template-columns: 1fr;
+}

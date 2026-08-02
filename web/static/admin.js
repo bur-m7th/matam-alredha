@@ -132,6 +132,12 @@ function requestCard(app) {
     class: "btn btn--ghost btn--sm", type: "button",
     onclick: () => downloadDocument(`${PREFIX}/applications/${app.id}/document`),
   }, "طباعة الاستمارة"));
+  if (app.status !== "approved") {
+    actions.append(el("button", {
+      class: "btn btn--ghost btn--sm", type: "button",
+      onclick: () => requestStatusDialog(app),
+    }, "تحفّظ / إلغاء"));
+  }
 
   return el("div", { class: "card" },
     el("div", { style: "display:flex;gap:0.75rem;align-items:baseline;flex-wrap:wrap" },
@@ -213,7 +219,10 @@ async function loadMembers() {
   data.members.forEach((m, i) => {
     body.append(el("tr", {},
       el("td", { class: "num", text: String(i + 1) }),
-      el("td", { text: m.name }),
+      el("td", {},
+        el("div", { text: m.name }),
+        (m.status && m.status !== "active") ? statusPill(m.status) : null
+      ),
       el("td", { class: "num", text: m.cpr }),
       el("td", { class: "num", text: isoToDisplay(m.dob) }),
       el("td", { class: "num", text: m.phone }),
@@ -225,6 +234,7 @@ async function loadMembers() {
             class: "btn btn--ghost btn--sm", type: "button",
             onclick: () => downloadDocument(`${PREFIX}/members/${m.id}/document`),
           }, "طباعة"),
+          statusButton(m),
           el("button", { class: "btn btn--danger btn--sm", type: "button", onclick: () => removeMember(m) }, "حذف")
         )
       )
@@ -596,6 +606,138 @@ function promptMeetingNo() {
     dialog.showModal();
     input.focus();
   });
+}
+
+/* ------------------------------------------------------------ membership status */
+
+const MEMBER_STATUS = {
+  active:    { label: "عضوية نشطة", cls: "pill--ok" },
+  suspended: { label: "تم التحفّظ", cls: "pill--warn" },
+  cancelled: { label: "عضوية ملغاة", cls: "pill--bad" },
+};
+
+function statusPill(status) {
+  const s = MEMBER_STATUS[status] || MEMBER_STATUS.active;
+  return el("span", { class: "pill " + s.cls, text: s.label });
+}
+
+// One button that opens the withdraw/restore choices, so the row stays readable.
+function statusButton(member) {
+  const active = (member.status || "active") === "active";
+  return el("button", {
+    class: "btn btn--ghost btn--sm",
+    type: "button",
+    onclick: () => memberStatusDialog(member),
+  }, active ? "تحفّظ / إلغاء" : "إعادة تفعيل");
+}
+
+function memberStatusDialog(member) {
+  const current = member.status || "active";
+  const note = el("textarea", { id: "stNote", rows: "3", value: member.status_note || "" });
+  const notice = el("div", { class: "notice notice--error", hidden: true });
+
+  const choose = el("div", { class: "choice choice--stack" },
+    el("input", { type: "radio", name: "mstatus", id: "stActive", value: "active", checked: current === "active" || undefined }),
+    el("label", { for: "stActive", text: "عضوية نشطة" }),
+    el("input", { type: "radio", name: "mstatus", id: "stSuspended", value: "suspended", checked: current === "suspended" || undefined }),
+    el("label", { for: "stSuspended", text: "تم التحفّظ" }),
+    el("input", { type: "radio", name: "mstatus", id: "stCancelled", value: "cancelled", checked: current === "cancelled" || undefined }),
+    el("label", { for: "stCancelled", text: "إلغاء العضوية" })
+  );
+
+  const dialog = el("dialog", {},
+    el("div", { class: "dialog__head", text: "حالة عضوية: " + member.name }),
+    el("div", { class: "dialog__body" },
+      notice,
+      el("div", { class: "field" }, el("span", { class: "label", text: "الحالة" }), choose),
+      el("p", { class: "help" },
+        "المتحفّظ عليه يبقى في الكشف وفي ملف Excel، ولا يستطيع التصويت، ويرى عند الدخول: يرجى مراجعة المأتم. ",
+        "الملغاة عضويته لا يستطيع الدخول إطلاقاً. الحذف النهائي زر منفصل."),
+      el("div", { class: "field" },
+        el("label", { class: "label", for: "stNote", text: "ملاحظة داخلية" }),
+        note,
+        el("p", { class: "help", text: "تظهر في ملف Excel للإدارة فقط، ولا يراها العضو." }))
+    ),
+    el("div", { class: "dialog__foot" },
+      el("button", {
+        class: "btn btn--ghost", type: "button",
+        onclick: () => { dialog.close(); dialog.remove(); },
+      }, "إلغاء"),
+      el("button", { class: "btn", type: "button", id: "stSave" }, "حفظ")
+    )
+  );
+
+  dialog.querySelector("#stSave").addEventListener("click", async () => {
+    notice.hidden = true;
+    const picked = dialog.querySelector('input[name="mstatus"]:checked');
+    try {
+      const res = await api(`${PREFIX}/members/${member.id}/status`, {
+        method: "PUT",
+        body: { status: picked ? picked.value : "active", note: note.value },
+      });
+      dialog.close(); dialog.remove();
+      toast(res.message, "ok");
+      loadMembers();
+    } catch (err) {
+      notice.textContent = err.message;
+      notice.hidden = false;
+    }
+  });
+
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
+// The same withdraw/cancel options for a request that has not been decided yet.
+function requestStatusDialog(app) {
+  const note = el("textarea", { id: "rqNote", rows: "3" });
+  const notice = el("div", { class: "notice notice--error", hidden: true });
+  const choose = el("div", { class: "choice choice--stack" },
+    el("input", { type: "radio", name: "astatus", id: "rqPending", value: "pending", checked: app.status === "pending" || undefined }),
+    el("label", { for: "rqPending", text: "قيد المراجعة" }),
+    el("input", { type: "radio", name: "astatus", id: "rqSuspended", value: "suspended", checked: app.status === "suspended" || undefined }),
+    el("label", { for: "rqSuspended", text: "تم التحفّظ" }),
+    el("input", { type: "radio", name: "astatus", id: "rqCancelled", value: "cancelled", checked: app.status === "cancelled" || undefined }),
+    el("label", { for: "rqCancelled", text: "إلغاء الطلب" })
+  );
+
+  const dialog = el("dialog", {},
+    el("div", { class: "dialog__head", text: "حالة الطلب: " + app.name }),
+    el("div", { class: "dialog__body" },
+      notice,
+      el("div", { class: "field" }, el("span", { class: "label", text: "الحالة" }), choose),
+      el("p", { class: "help", text: "المتحفّظ على طلبه يرى عند محاولة الدخول: يرجى مراجعة المأتم." }),
+      el("div", { class: "field" },
+        el("label", { class: "label", for: "rqNote", text: "ملاحظة داخلية" }), note)
+    ),
+    el("div", { class: "dialog__foot" },
+      el("button", {
+        class: "btn btn--ghost", type: "button",
+        onclick: () => { dialog.close(); dialog.remove(); },
+      }, "إلغاء"),
+      el("button", { class: "btn", type: "button", id: "rqSave" }, "حفظ")
+    )
+  );
+
+  dialog.querySelector("#rqSave").addEventListener("click", async () => {
+    notice.hidden = true;
+    const picked = dialog.querySelector('input[name="astatus"]:checked');
+    try {
+      const res = await api(`${PREFIX}/applications/${app.id}/status`, {
+        method: "PUT",
+        body: { status: picked ? picked.value : "pending", note: note.value },
+      });
+      dialog.close(); dialog.remove();
+      toast(res.message, "ok");
+      loadRequests();
+    } catch (err) {
+      notice.textContent = err.message;
+      notice.hidden = false;
+    }
+  });
+
+  document.body.append(dialog);
+  dialog.showModal();
 }
 
 /* ------------------------------------------------------------ print template */

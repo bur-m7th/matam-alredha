@@ -43,6 +43,9 @@ func (s *Server) membershipRoutes(m *http.ServeMux) {
 	m.HandleFunc("DELETE "+b+"/form/fields/{key}", s.requireAdmin(store.KindMembership, s.handleDeleteField))
 	m.HandleFunc("POST "+b+"/form/reorder", s.requireAdmin(store.KindMembership, s.handleReorderFields))
 
+	m.HandleFunc("PUT "+b+"/members/{id}/status", s.requireAdmin(store.KindMembership, s.handleMemberStatus))
+	m.HandleFunc("PUT "+b+"/applications/{id}/status", s.requireAdmin(store.KindMembership, s.handleApplicationStatus))
+
 	m.HandleFunc("GET "+b+"/template", s.requireAdmin(store.KindMembership, s.handleGetTemplate))
 	m.HandleFunc("POST "+b+"/template", s.requireAdmin(store.KindMembership, s.handleUploadTemplate))
 	m.HandleFunc("PUT "+b+"/signatories", s.requireAdmin(store.KindMembership, s.handleSignatories))
@@ -736,4 +739,50 @@ func (s *Server) handleApplicationDocument(w http.ResponseWriter, r *http.Reques
 		status = store.PrintStatusRejected
 	}
 	s.renderDocument(w, app.Person, status, app.DecidedAt, 0, app.MeetingNo)
+}
+
+// ---------------------------------------------------------------- membership status
+
+// membershipStatusRequest is distinct from the elections status payload.
+type membershipStatusRequest struct {
+	Status string `json:"status"`
+	Note   string `json:"note"`
+}
+
+func (s *Server) handleMemberStatus(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		fail(w, http.StatusBadRequest, "معرف غير صالح")
+		return
+	}
+	var req membershipStatusRequest
+	if err := decode(w, r, &req); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.st.SetUserStatus(id, req.Status, req.Note, a.Username); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// The spreadsheet carries the status column, so it has to be rebuilt.
+	s.syncExport()
+	ok(w, map[string]string{"message": "تم تحديث حالة العضوية: " + store.MemberStatusLabel(req.Status)})
+}
+
+func (s *Server) handleApplicationStatus(w http.ResponseWriter, r *http.Request, a store.Admin) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		fail(w, http.StatusBadRequest, "معرف غير صالح")
+		return
+	}
+	var req membershipStatusRequest
+	if err := decode(w, r, &req); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.st.SetApplicationStatus(id, req.Status, req.Note, a.Username); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	ok(w, map[string]string{"message": "تم تحديث حالة الطلب: " + store.AppStatusLabel(req.Status)})
 }

@@ -292,6 +292,13 @@ func (s *Server) handleMemberLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	u, err := s.st.FindUserByCredentials(phone, dob, cpr)
+	if err == nil && u.Status == store.MemberCancelled {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{
+			"error":  "يرجى مراجعة المأتم",
+			"status": "cancelled",
+		})
+		return
+	}
 	if err != nil {
 		status := s.st.PendingApplicationStatus(cpr, phone)
 		switch status {
@@ -304,6 +311,13 @@ func (s *Server) handleMemberLogin(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{
 				"error":  "لم يتم اعتماد طلب العضوية. للمراجعة يرجى التواصل مع إدارة المأتم",
 				"status": "rejected",
+			})
+		case store.AppSuspended, store.AppCancelled:
+			// A withheld or cancelled request is not explained online; the
+			// applicant is asked to come to the ma'tam.
+			writeJSON(w, http.StatusUnauthorized, map[string]any{
+				"error":  "يرجى مراجعة المأتم",
+				"status": status,
 			})
 		default:
 			writeJSON(w, http.StatusUnauthorized, map[string]any{
@@ -340,6 +354,7 @@ type memberState struct {
 	Name       string `json:"name"`
 	CPR        string `json:"cpr"`
 	Message    string `json:"message"`
+	Suspended  bool   `json:"suspended"`
 	VotingOpen bool   `json:"voting_open"`
 	HasVoted   bool   `json:"has_voted"`
 	Title      string `json:"voting_title"`
@@ -368,6 +383,15 @@ func (s *Server) handleMemberMe(w http.ResponseWriter, r *http.Request, u store.
 	if st.Closed {
 		st.Message = s.st.Setting("voting_closed_message", st.Message)
 	}
+	// A withheld membership overrides everything else: no voting, no
+	// announcement, just the notice asking them to come to the ma'tam.
+	if u.Status != store.MemberActive {
+		st.Suspended = true
+		st.VotingOpen = false
+		st.Closed = false
+		st.Announce = ""
+		st.Message = s.st.Setting("suspended_message", "يرجى مراجعة المأتم")
+	}
 	ok(w, st)
 }
 
@@ -391,6 +415,10 @@ type ballotForm struct {
 // handleBallotForm returns the ballot without any tallies. Vote counts are
 // never included in a member-facing payload.
 func (s *Server) handleBallotForm(w http.ResponseWriter, r *http.Request, u store.User) {
+	if u.Status != store.MemberActive {
+		fail(w, http.StatusForbidden, "يرجى مراجعة المأتم")
+		return
+	}
 	if s.st.VotingStatus() != store.VotingOpen {
 		fail(w, http.StatusForbidden, "التصويت غير متاح حالياً")
 		return
@@ -444,6 +472,10 @@ type castRequest struct {
 }
 
 func (s *Server) handleCastBallot(w http.ResponseWriter, r *http.Request, u store.User) {
+	if u.Status != store.MemberActive {
+		fail(w, http.StatusForbidden, "يرجى مراجعة المأتم")
+		return
+	}
 	var req castRequest
 	if err := decode(w, r, &req); err != nil {
 		fail(w, http.StatusBadRequest, err.Error())

@@ -206,7 +206,7 @@ func (s *Store) DeleteApplication(id int64, actor string) error {
 
 const userCols = `u.id, u.application_id, u.name, u.cpr, u.dob, u.phone, u.email,
 	u.house, u.road, u.block, u.volunteer, u.volunteer_field, u.affiliated,
-	u.affiliation, u.extra, u.meeting_no, u.source, u.created_at,
+	u.affiliation, u.extra, u.meeting_no, u.status, u.status_note, u.status_at, u.source, u.created_at,
 	EXISTS(SELECT 1 FROM ballots b WHERE b.user_id = u.id)`
 
 func scanUser(sc interface{ Scan(...any) error }) (User, error) {
@@ -216,7 +216,7 @@ func scanUser(sc interface{ Scan(...any) error }) (User, error) {
 	var extra string
 	err := sc.Scan(&u.ID, &appID, &u.Name, &u.CPR, &u.DOB, &u.Phone, &u.Email,
 		&u.House, &u.Road, &u.Block, &vol, &u.VolunteerField, &aff,
-		&u.Affiliation, &extra, &u.MeetingNo, &u.Source, &u.CreatedAt, &voted)
+		&u.Affiliation, &extra, &u.MeetingNo, &u.Status, &u.StatusNote, &u.StatusAt, &u.Source, &u.CreatedAt, &voted)
 	if err != nil {
 		return u, err
 	}

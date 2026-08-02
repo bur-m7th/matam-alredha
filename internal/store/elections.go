@@ -349,6 +349,15 @@ func (s *Store) CastBallot(userID int64, selections map[int64][]int64) error {
 	if s.VotingStatus() != VotingOpen {
 		return errors.New("التصويت غير متاح حالياً")
 	}
+	// A membership that has been withdrawn carries no vote. Checked here at the
+	// point of writing, not only in the handler, so no route can bypass it.
+	var status string
+	if err := s.DB.QueryRow(`SELECT status FROM users WHERE id = ?`, userID).Scan(&status); err != nil {
+		return errors.New("العضوية غير موجودة")
+	}
+	if status != MemberActive {
+		return errors.New("لا يمكنك التصويت. يرجى مراجعة المأتم")
+	}
 	if s.HasVoted(userID) {
 		return errors.New("لقد قمت بالتصويت مسبقاً")
 	}
@@ -440,7 +449,9 @@ func (s *Store) Turnout() (voted int, eligible int, err error) {
 	if err = s.DB.QueryRow(`SELECT COUNT(*) FROM ballots`).Scan(&voted); err != nil {
 		return
 	}
-	err = s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&eligible)
+	// Only active members are entitled to vote, so they alone form the
+	// denominator for turnout.
+	err = s.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE status = ?`, MemberActive).Scan(&eligible)
 	return
 }
 

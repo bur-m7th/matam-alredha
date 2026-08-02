@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS applications (
 	affiliated       INTEGER NOT NULL DEFAULT 0,
 	affiliation      TEXT NOT NULL DEFAULT '',
 	extra            TEXT NOT NULL DEFAULT '{}',
-	status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+	status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','suspended','cancelled')),
 	reject_reason    TEXT NOT NULL DEFAULT '',
 	created_at       TEXT NOT NULL,
 	decided_at       TEXT NOT NULL DEFAULT '',
@@ -99,6 +99,9 @@ CREATE TABLE IF NOT EXISTS users (
 	affiliation      TEXT NOT NULL DEFAULT '',
 	extra            TEXT NOT NULL DEFAULT '{}',
 	meeting_no       TEXT NOT NULL DEFAULT '',
+	status           TEXT NOT NULL DEFAULT 'active',
+	status_note      TEXT NOT NULL DEFAULT '',
+	status_at        TEXT NOT NULL DEFAULT '',
 	source           TEXT NOT NULL DEFAULT 'form',
 	created_at       TEXT NOT NULL
 );
@@ -194,6 +197,12 @@ func (s *Store) migrate() error {
 	additions := []struct{ table, column, definition string }{
 		{"users", "meeting_no", "TEXT NOT NULL DEFAULT ''"},
 		{"applications", "meeting_no", "TEXT NOT NULL DEFAULT ''"},
+		{"users", "status", "TEXT NOT NULL DEFAULT 'active'"},
+		{"users", "status_note", "TEXT NOT NULL DEFAULT ''"},
+		{"users", "status_at", "TEXT NOT NULL DEFAULT ''"},
+	}
+	if err := s.widenApplicationStatus(); err != nil {
+		return err
 	}
 	for _, a := range additions {
 		has, err := s.hasColumn(a.table, a.column)
@@ -208,6 +217,74 @@ func (s *Store) migrate() error {
 		}
 	}
 	return nil
+}
+
+// widenApplicationStatus rebuilds the applications table when it still carries
+// the original three-value CHECK constraint. SQLite has no way to alter a
+// constraint in place, so the table is copied into a new one. Done inside a
+// transaction with foreign keys off, so a failure leaves the original intact.
+func (s *Store) widenApplicationStatus() error {
+	var ddl string
+	err := s.DB.QueryRow(
+		`SELECT sql FROM sqlite_master WHERE type='table' AND name='applications'`).Scan(&ddl)
+	if err != nil {
+		return nil // table not created yet; the schema above is already current
+	}
+	if strings.Contains(ddl, "'suspended'") {
+		return nil // already widened
+	}
+
+	if _, err := s.DB.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		return err
+	}
+	defer s.DB.Exec(`PRAGMA foreign_keys = ON`)
+
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	steps := []string{
+		`CREATE TABLE applications_new (
+			id               INTEGER PRIMARY KEY AUTOINCREMENT,
+			name             TEXT NOT NULL,
+			cpr              TEXT NOT NULL,
+			dob              TEXT NOT NULL,
+			phone            TEXT NOT NULL,
+			email            TEXT NOT NULL DEFAULT '',
+			house            TEXT NOT NULL DEFAULT '',
+			road             TEXT NOT NULL DEFAULT '',
+			block            TEXT NOT NULL DEFAULT '',
+			volunteer        INTEGER NOT NULL DEFAULT 0,
+			volunteer_field  TEXT NOT NULL DEFAULT '',
+			affiliated       INTEGER NOT NULL DEFAULT 0,
+			affiliation      TEXT NOT NULL DEFAULT '',
+			extra            TEXT NOT NULL DEFAULT '{}',
+			status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','suspended','cancelled')),
+			reject_reason    TEXT NOT NULL DEFAULT '',
+			created_at       TEXT NOT NULL,
+			decided_at       TEXT NOT NULL DEFAULT '',
+			decided_by       TEXT NOT NULL DEFAULT '',
+			meeting_no       TEXT NOT NULL DEFAULT ''
+		)`,
+		`INSERT INTO applications_new
+		 SELECT id, name, cpr, dob, phone, email, house, road, block,
+		        volunteer, volunteer_field, affiliated, affiliation, extra,
+		        status, reject_reason, created_at, decided_at, decided_by, meeting_no
+		 FROM applications`,
+		`DROP TABLE applications`,
+		`ALTER TABLE applications_new RENAME TO applications`,
+		`CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_applications_cpr    ON applications(cpr)`,
+		`CREATE INDEX IF NOT EXISTS idx_applications_phone  ON applications(phone)`,
+	}
+	for _, q := range steps {
+		if _, err := tx.Exec(q); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) hasColumn(table, column string) (bool, error) {
@@ -310,6 +387,7 @@ func (s *Store) installDefaults() error {
 		"registration_open":           "1",
 		"registration_close_at":       "",
 		"registration_closed_message": "باب التسجيل في الجمعية العمومية مغلق حالياً.",
+		"suspended_message":           "يرجى مراجعة المأتم",
 		"user_waiting_message":        "لا يوجد شيء حتى الآن، بانتظار الاعلان من لجنة الانتخابات",
 		"voting_mode":                 "roles",
 		"voting_status":               "draft",
