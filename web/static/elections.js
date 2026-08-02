@@ -1,5 +1,6 @@
 import {
-  $, $$, api, busy, clear, clearFieldErrors, confirmAction, el, handleError, paintChrome, toast,
+  $, $$, api, busy, candidatePhoto, clear, clearFieldErrors, confirmAction, el,
+  handleError, paintChrome, skeletonCards, toast,
 } from "./app.js";
 import { emptyState, setupLoginGate, setupTabs, stat } from "./dashboard.js";
 
@@ -10,8 +11,12 @@ const PREFIX = location.pathname.replace(/\/+$/, "") + "/api";
 let state = null;
 
 paintChrome();
-setupTabs(() => load());
-setupLoginGate({ prefix: PREFIX, onReady: () => load() });
+setupTabs((tab) => {
+  load();
+  if (tab === "applications") loadApplications();
+  if (tab === "candidates") loadDisplay();
+});
+setupLoginGate({ prefix: PREFIX, onReady: () => { load(); loadApplications(); loadDisplay(); } });
 
 const STATUS_TEXT = {
   draft: ["notice notice--warn", "التصويت في وضع الإعداد. لا يظهر للأعضاء بعد."],
@@ -39,6 +44,7 @@ async function load() {
   $("#vTitle").value = state.title || "";
   $("#vAnnounce").value = state.announcement || "";
   $("#vClosed").value = state.closed_message || "";
+  if (state.candidacy_intro !== undefined) $("#gateIntro").value = state.candidacy_intro || "";
   $("#vWinners").value = state.single_winners;
   $("#vSelections").value = state.single_selections;
   syncModeUI();
@@ -376,3 +382,184 @@ function buildDialog(title, body) {
   dialog.showModal();
   return dialog;
 }
+
+/* ------------------------------------------------------------ candidacy review */
+
+let cFilter = "submitted";
+
+document.querySelectorAll("[data-cfilter]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-cfilter]").forEach((b) =>
+      b.setAttribute("aria-selected", String(b === btn)));
+    cFilter = btn.dataset.cfilter;
+    loadApplications();
+  });
+});
+
+export async function loadApplications() {
+  const list = clear($("#applicationsList"));
+  list.append(skeletonCards(3));
+
+  let data;
+  try {
+    data = await api(`${PREFIX}/candidacies?status=${encodeURIComponent(cFilter)}`);
+  } catch (err) { handleError(err); return; }
+
+  const gate = $("#gateState");
+  gate.className = data.gate_open ? "notice notice--ok" : "notice notice--warn";
+  gate.textContent = data.gate_open
+    ? `باب الترشح مفتوح. الطلبات: ${data.counts.submitted} قيد المراجعة، ${data.counts.accepted} مقبول، ${data.counts.returned} معاد للتعديل.`
+    : "باب الترشح مغلق. لا يستطيع الأعضاء التقديم حالياً.";
+
+  clear(list);
+  if (!data.candidacies.length) {
+    list.append(emptyState("لا توجد طلبات في هذه القائمة"));
+    return;
+  }
+  for (const c of data.candidacies) {
+    list.append(applicationCard(c, data.roles));
+  }
+}
+
+const CSTATUS = {
+  submitted: ["قيد المراجعة", "pill--warn"],
+  accepted:  ["مقبول", "pill--ok"],
+  returned:  ["معاد للتعديل", "pill--bad"],
+};
+
+function applicationCard(c, roles) {
+  const [label, cls] = CSTATUS[c.status] || CSTATUS.submitted;
+
+  const roleSelect = el("select", {},
+    roles.map((r) => el("option", {
+      value: String(r.id), text: r.name,
+      selected: String(r.id) === String(c.role_id) ? "selected" : undefined,
+    }))
+  );
+  roleSelect.addEventListener("change", async () => {
+    try {
+      const res = await api(`${PREFIX}/candidacies/${c.id}/role`, {
+        method: "PUT", body: { role_id: Number(roleSelect.value) },
+      });
+      toast(res.message, "ok");
+      loadApplications();
+    } catch (err) { handleError(err); loadApplications(); }
+  });
+
+  const actions = el("div", { class: "btn-row", style: "margin-top:0.9rem" });
+  if (c.status !== "accepted") {
+    actions.append(el("button", {
+      class: "btn btn--sm", type: "button",
+      onclick: () => acceptApplication(c),
+    }, "قبول الترشح"));
+  }
+  // There is no reject: the only alternative is sending it back with a note.
+  actions.append(el("button", {
+    class: "btn btn--ghost btn--sm", type: "button",
+    onclick: () => returnApplication(c),
+  }, "إعادة للتعديل مع ملاحظة"));
+
+  return el("div", { class: "card" },
+    el("div", { style: "display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start" },
+      el("div", { style: "width:7rem;flex:0 0 auto" }, candidatePhoto(c)),
+      el("div", { style: "flex:1 1 14rem;min-width:0" },
+        el("h3", { style: "margin:0 0 0.35rem" }, c.name),
+        el("span", { class: "pill " + cls, text: label }),
+        c.note ? el("p", { class: "help", style: "margin-top:0.6rem;white-space:pre-wrap" },
+          "آخر ملاحظة: " + c.note) : null,
+        el("div", { class: "field", style: "margin-top:0.8rem;margin-bottom:0" },
+          el("span", { class: "label", text: "المنصب" }),
+          roleSelect),
+        actions
+      )
+    )
+  );
+}
+
+async function acceptApplication(c) {
+  try {
+    const res = await api(`${PREFIX}/candidacies/${c.id}/accept`, { method: "POST", body: {} });
+    toast(res.message, "ok");
+    loadApplications();
+    load();
+  } catch (err) { handleError(err); }
+}
+
+function returnApplication(c) {
+  const note = el("textarea", { rows: "4", placeholder: "مثال: الصورة غير واضحة، يرجى إرفاق صورة أحدث" });
+  const notice = el("div", { class: "notice notice--error", hidden: true });
+  const dialog = el("dialog", {},
+    el("div", { class: "dialog__head", text: "إعادة الطلب للتعديل" }),
+    el("div", { class: "dialog__body" },
+      notice,
+      el("p", { class: "help", text: "تُرسل الملاحظة إلى المترشح، ويستطيع تعديل طلبه وإعادة إرساله. لا يُحذف الطلب." }),
+      el("div", { class: "field" },
+        el("span", { class: "label", text: "الملاحظة" }), note)
+    ),
+    el("div", { class: "dialog__foot" },
+      el("button", {
+        class: "btn btn--ghost", type: "button",
+        onclick: () => { dialog.close(); dialog.remove(); },
+      }, "إلغاء"),
+      el("button", { class: "btn", type: "button", id: "retSave" }, "إرسال")
+    )
+  );
+  dialog.querySelector("#retSave").addEventListener("click", async () => {
+    notice.hidden = true;
+    try {
+      const res = await api(`${PREFIX}/candidacies/${c.id}/return`, {
+        method: "POST", body: { note: note.value },
+      });
+      dialog.close(); dialog.remove();
+      toast(res.message, "ok");
+      loadApplications();
+      load();
+    } catch (err) {
+      notice.textContent = err.message;
+      notice.hidden = false;
+    }
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  note.focus();
+}
+
+/* ------------------------------------------------------------ gate + display */
+
+$("#gateOpenBtn").addEventListener("click", () => setGate("open"));
+$("#gateCloseBtn").addEventListener("click", () => setGate("closed"));
+$("#gateSaveBtn").addEventListener("click", () => setGate(""));
+
+async function setGate(gate) {
+  try {
+    const res = await api(`${PREFIX}/candidacy-gate`, {
+      method: "PUT", body: { gate, intro: $("#gateIntro").value },
+    });
+    toast(res.message, "ok");
+    loadApplications();
+    load();
+  } catch (err) { handleError(err); }
+}
+
+export async function loadDisplay() {
+  try {
+    const d = await api(`${PREFIX}/display`);
+    $("#dispPhoto").checked = Boolean(d.photo);
+    $("#dispRole").checked = Boolean(d.role);
+    $("#dispOrder").checked = Boolean(d.order);
+  } catch { /* the panel simply stays at its defaults */ }
+}
+
+$("#dispSave").addEventListener("click", async () => {
+  try {
+    const res = await api(`${PREFIX}/display`, {
+      method: "PUT",
+      body: {
+        photo: $("#dispPhoto").checked,
+        role: $("#dispRole").checked,
+        order: $("#dispOrder").checked,
+      },
+    });
+    toast(res.message, "ok");
+  } catch (err) { handleError(err); }
+});

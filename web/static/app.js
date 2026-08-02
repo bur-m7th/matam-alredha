@@ -328,3 +328,56 @@ function staffDialog() {
   dialog.showModal();
   user.focus();
 }
+
+/* ------------------------------------------------------------ loading state */
+
+// Skeleton blocks give the page its final shape while data is in flight, so
+// nothing jumps once the response lands.
+export function skeletonLines(count = 3) {
+  const box = el("div", {});
+  box.append(el("div", { class: "skel skel--title" }));
+  for (let i = 0; i < count; i += 1) {
+    box.append(el("div", { class: "skel skel--line" + (i === count - 1 ? " skel--short" : "") }));
+  }
+  return box;
+}
+
+export function skeletonCards(count = 4) {
+  return el("div", { class: "candidates" },
+    Array.from({ length: count }, () =>
+      el("div", { class: "candidate" },
+        el("div", { class: "skel skel--photo" }),
+        el("div", { class: "candidate__body" },
+          el("div", { class: "skel skel--line" }),
+          el("div", { class: "skel skel--line skel--short" })
+        )
+      )
+    )
+  );
+}
+
+// candidatePhoto defers the download until the card is near the viewport and
+// keeps the layout stable while it arrives. The thumbnail is requested rather
+// than the full copy, which is a large saving on a grid over mobile data.
+export function candidatePhoto(candidate, { full = false } = {}) {
+  const src = full ? (candidate.photo || candidate.thumb) : (candidate.thumb || candidate.photo);
+  if (!src) {
+    return el("div", { class: "cphoto cphoto--none", "aria-hidden": "true" },
+      (candidate.name || "؟").trim().charAt(0));
+  }
+  const img = el("img", {
+    class: "cphoto",
+    src,
+    alt: "",
+    loading: "lazy",
+    decoding: "async",
+    width: "320",
+    height: "320",
+    "data-loading": "1",
+  });
+  const done = () => img.removeAttribute("data-loading");
+  img.addEventListener("load", done);
+  img.addEventListener("error", done);
+  if (img.complete) done();
+  return img;
+}

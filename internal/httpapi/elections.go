@@ -16,6 +16,14 @@ import (
 func (s *Server) electionRoutes(m *http.ServeMux) {
 	k := store.KindElections
 	b := "/" + s.cfg.ElectionsPath + "/api"
+	m.HandleFunc("GET "+b+"/candidacies", s.requireAdmin(k, s.handleListCandidacies))
+	m.HandleFunc("POST "+b+"/candidacies/{id}/accept", s.requireAdmin(k, s.handleAcceptCandidacy))
+	m.HandleFunc("POST "+b+"/candidacies/{id}/return", s.requireAdmin(k, s.handleReturnCandidacy))
+	m.HandleFunc("PUT "+b+"/candidacies/{id}/role", s.requireAdmin(k, s.handleAdminCandidacyRole))
+	m.HandleFunc("PUT "+b+"/candidacy-gate", s.requireAdmin(k, s.handleCandidacyGate))
+	m.HandleFunc("GET "+b+"/display", s.requireAdmin(k, s.handleDisplayFields))
+	m.HandleFunc("PUT "+b+"/display", s.requireAdmin(k, s.handleDisplayFields))
+
 	m.HandleFunc("POST "+b+"/login", s.handleAdminLogin(k))
 	m.HandleFunc("POST "+b+"/logout", s.handleAdminLogout(k))
 	m.HandleFunc("GET "+b+"/session", s.requireAdmin(k, s.handleAdminSession))

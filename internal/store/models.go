@@ -101,6 +101,8 @@ type Participant struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Photo       string `json:"photo"`
+	Thumb       string `json:"thumb,omitempty"`
+	CandidacyID int64  `json:"candidacy_id,omitempty"`
 	SortOrder   int    `json:"sort_order"`
 	Votes       int    `json:"votes,omitempty"`
 	Share       string `json:"share,omitempty"`

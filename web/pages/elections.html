@@ -56,6 +56,7 @@
 
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-tab="setup" aria-selected="true">إعداد التصويت</button>
+      <button class="tab" role="tab" data-tab="applications" aria-selected="false">طلبات الترشح</button>
       <button class="tab" role="tab" data-tab="candidates" aria-selected="false">المرشحون</button>
       <button class="tab" role="tab" data-tab="results" aria-selected="false">النتائج</button>
     </div>
@@ -132,7 +133,50 @@
       </div>
     </section>
 
+    <section class="panel" data-panel="applications" hidden>
+      <div class="card">
+        <h2>باب الترشح</h2>
+        <p class="lede">
+          عند فتحه يظهر للأعضاء المسجّلين زر تقديم طلب الترشح. يجب إضافة المناصب أولاً،
+          ولا يبدأ التصويت إلا بعد إغلاق هذا الباب.
+        </p>
+        <div id="gateState" class="notice"></div>
+        <div class="field" style="margin-top:1rem">
+          <label class="label" for="gateIntro">نص التعريف للأعضاء</label>
+          <textarea id="gateIntro" rows="3"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn" type="button" id="gateOpenBtn">فتح باب الترشح</button>
+          <button class="btn btn--danger" type="button" id="gateCloseBtn">إغلاق باب الترشح</button>
+          <button class="btn btn--ghost" type="button" id="gateSaveBtn">حفظ النص</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="tabs tabs--sub" role="tablist">
+          <button class="tab" type="button" data-cfilter="submitted" aria-selected="true">قيد المراجعة</button>
+          <button class="tab" type="button" data-cfilter="accepted" aria-selected="false">المقبولون</button>
+          <button class="tab" type="button" data-cfilter="returned" aria-selected="false">المعادة للتعديل</button>
+          <button class="tab" type="button" data-cfilter="all" aria-selected="false">الكل</button>
+        </div>
+      </div>
+      <div id="applicationsList"></div>
+    </section>
+
     <section class="panel" data-panel="candidates" hidden>
+      <div class="card">
+        <h2>البيانات الظاهرة للناخبين</h2>
+        <p class="lede">اسم المرشح يظهر دائماً. ما عداه يمكن إخفاؤه.</p>
+        <div class="field">
+          <label class="switch"><input type="checkbox" id="dispPhoto"> <span>عرض صورة المرشح</span></label>
+          <label class="switch"><input type="checkbox" id="dispRole"> <span>عرض وصف المنصب</span></label>
+          <label class="switch"><input type="checkbox" id="dispOrder"> <span>عرض ترقيم المرشحين</span></label>
+        </div>
+        <div class="btn-row btn-row--end">
+          <button class="btn" type="button" id="dispSave">حفظ</button>
+        </div>
+      </div>
+
       <div class="toolbar">
         <button class="btn" type="button" id="addCandidateBtn">إضافة مرشح</button>
       </div>

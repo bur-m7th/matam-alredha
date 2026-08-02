@@ -351,18 +351,22 @@ func (s *Server) handleMemberLogout(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- member area
 
 type memberState struct {
-	Name       string `json:"name"`
-	CPR        string `json:"cpr"`
-	Message    string `json:"message"`
-	Suspended  bool   `json:"suspended"`
-	VotingOpen bool   `json:"voting_open"`
-	HasVoted   bool   `json:"has_voted"`
-	Title      string `json:"voting_title"`
-	Announce   string `json:"announcement"`
-	Closed     bool   `json:"voting_closed"`
-	OrgName    string `json:"org_name"`
-	Author     string `json:"footer_author"`
-	Instagram  string `json:"footer_instagram"`
+	Name          string `json:"name"`
+	CPR           string `json:"cpr"`
+	Message       string `json:"message"`
+	Suspended     bool   `json:"suspended"`
+	CandidacyOpen bool   `json:"candidacy_open"`
+	CandidacyMine string `json:"candidacy_status"`
+	CanStand      bool   `json:"can_stand"`
+	StandReason   string `json:"stand_reason"`
+	VotingOpen    bool   `json:"voting_open"`
+	HasVoted      bool   `json:"has_voted"`
+	Title         string `json:"voting_title"`
+	Announce      string `json:"announcement"`
+	Closed        bool   `json:"voting_closed"`
+	OrgName       string `json:"org_name"`
+	Author        string `json:"footer_author"`
+	Instagram     string `json:"footer_instagram"`
 }
 
 func (s *Server) handleMemberMe(w http.ResponseWriter, r *http.Request, u store.User) {
@@ -382,6 +386,11 @@ func (s *Server) handleMemberMe(w http.ResponseWriter, r *http.Request, u store.
 	}
 	if st.Closed {
 		st.Message = s.st.Setting("voting_closed_message", st.Message)
+	}
+	st.CandidacyOpen = s.st.CandidacyGate() == store.GateOpen
+	st.CanStand, st.StandReason = s.st.EligibleToStand(u)
+	if c, found, err := s.st.CandidacyForUser(u.ID); err == nil && found {
+		st.CandidacyMine = c.Status
 	}
 	// A withheld membership overrides everything else: no voting, no
 	// announcement, just the notice asking them to come to the ma'tam.
@@ -405,11 +414,12 @@ type ballotSection struct {
 }
 
 type ballotForm struct {
-	Title    string          `json:"title"`
-	Announce string          `json:"announcement"`
-	Mode     string          `json:"mode"`
-	HasVoted bool            `json:"has_voted"`
-	Sections []ballotSection `json:"sections"`
+	Display  store.DisplayFields `json:"display"`
+	Title    string              `json:"title"`
+	Announce string              `json:"announcement"`
+	Mode     string              `json:"mode"`
+	HasVoted bool                `json:"has_voted"`
+	Sections []ballotSection     `json:"sections"`
 }
 
 // handleBallotForm returns the ballot without any tallies. Vote counts are
@@ -428,6 +438,7 @@ func (s *Server) handleBallotForm(w http.ResponseWriter, r *http.Request, u stor
 		Announce: s.st.Setting("voting_announcement", ""),
 		Mode:     s.st.VotingMode(),
 		HasVoted: s.st.HasVoted(u.ID),
+		Display:  s.st.DisplayFieldSettings(),
 	}
 	if form.Mode == "single" {
 		cands, err := s.st.Participants(0, false)
@@ -464,7 +475,30 @@ func (s *Server) handleBallotForm(w http.ResponseWriter, r *http.Request, u stor
 			})
 		}
 	}
+	// Strip anything the committee chose not to reveal, so a detail withheld
+	// from voters never reaches the browser at all.
+	for i := range form.Sections {
+		form.Sections[i].Candidates = redactCandidates(form.Sections[i].Candidates, form.Display)
+		if !form.Display.Role {
+			form.Sections[i].Description = ""
+		}
+	}
 	ok(w, form)
+}
+
+// redactCandidates removes fields the elections admin has hidden. The name
+// always stays: a ballot without names cannot be voted on.
+func redactCandidates(in []store.Participant, d store.DisplayFields) []store.Participant {
+	out := make([]store.Participant, 0, len(in))
+	for _, p := range in {
+		if !d.Photo {
+			p.Photo, p.Thumb = "", ""
+		}
+		p.CandidacyID = 0
+		p.Votes, p.Share = 0, ""
+		out = append(out, p)
+	}
+	return out
 }
 
 type castRequest struct {

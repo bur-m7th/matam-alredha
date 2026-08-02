@@ -1,4 +1,7 @@
-import { $, api, busy, clear, confirmAction, el, handleError, paintChrome, toast } from "./app.js";
+import {
+  $, api, busy, candidatePhoto, clear, confirmAction, el, handleError,
+  paintChrome, skeletonCards, toast,
+} from "./app.js";
 
 const content = $("#content");
 let ballot = null;
@@ -49,10 +52,10 @@ function candidateCard(section, candidate) {
     updateFooter();
   });
 
-  const photo = candidate.photo
-    ? el("img", { class: "candidate__photo", src: candidate.photo, alt: "", loading: "lazy" })
-    : el("div", { class: "candidate__photo candidate__photo--none", "aria-hidden": "true" },
-        (candidate.name || "؟").trim().charAt(0));
+  // The committee may have chosen to withhold photographs; when they have, the
+  // ballot shows names only rather than a column of empty frames.
+  const showPhotos = !ballot.display || ballot.display.photo !== false;
+  const photo = showPhotos ? candidatePhoto(candidate) : null;
 
   return el("div", { class: "candidate" },
     input,
@@ -181,6 +184,9 @@ function renderDone() {
 }
 
 async function load() {
+  // The ballot grid can be a dozen photographs; the skeleton holds the layout
+  // so nothing shifts under the reader's thumb as they arrive.
+  clear(content).append(el("div", { class: "card" }, skeletonCards(4)));
   try {
     ballot = await api("/api/member/ballot");
   } catch (err) {

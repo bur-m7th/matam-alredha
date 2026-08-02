@@ -98,6 +98,7 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /submitted", s.page("submitted.html"))
 	m.HandleFunc("GET /member", s.page("member.html"))
 	m.HandleFunc("GET /vote", s.page("vote.html"))
+	m.HandleFunc("GET /candidacy", s.page("candidacy.html"))
 	// The dashboards are unlinked from every public page and live at whatever
 	// segment the operator configured.
 	m.HandleFunc("GET /"+s.cfg.AdminPath, s.page("admin.html"))
@@ -111,8 +112,11 @@ func (s *Server) routes() {
 
 	// Static assets and uploaded photos
 	m.Handle("GET /static/", http.FileServer(http.FS(s.cfg.WebFS)))
+	// Uploaded photos are content-addressed by a random name and never mutate,
+	// so a long cache lifetime costs nothing and spares the server a request
+	// per photo on every ballot view.
 	m.Handle("GET /uploads/", http.StripPrefix("/uploads/",
-		s.noIndex(http.FileServer(http.Dir(s.cfg.UploadDir)))))
+		s.noIndex(cacheForever(http.FileServer(http.Dir(s.cfg.UploadDir))))))
 
 	// Public API
 	m.HandleFunc("GET /api/public/config", s.handlePublicConfig)
@@ -133,6 +137,11 @@ func (s *Server) routes() {
 
 	// Hidden staff entrance. Credentials decide which dashboard to open.
 	m.HandleFunc("POST /api/auth/staff", s.handleStaffGate)
+
+	// Standing for election: the member's own candidacy.
+	m.HandleFunc("GET /api/member/candidacy", s.requireMember(s.handleMyCandidacy))
+	m.HandleFunc("POST /api/member/candidacy", s.requireMember(s.handleSubmitCandidacy))
+	m.HandleFunc("PUT /api/member/candidacy/role", s.requireMember(s.handleChangeMyRole))
 
 	// Member API
 	m.HandleFunc("GET /api/member/me", s.requireMember(s.handleMemberMe))
@@ -179,6 +188,14 @@ func sanitizePath(v, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+// cacheForever marks immutable assets so browsers reuse them without asking.
+func cacheForever(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) noIndex(h http.Handler) http.Handler {

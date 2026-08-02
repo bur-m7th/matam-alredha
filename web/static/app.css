@@ -694,3 +694,89 @@ hr.rule { border: none; border-top: 1px solid var(--sand); margin: 1.5rem 0; }
 .choice--stack {
   grid-template-columns: 1fr;
 }
+
+/* ---- skeleton placeholders ----
+   Shown while a panel is still loading so the page has its final shape from the
+   first paint instead of jumping once data arrives. */
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--stone-deep, #E7EAE5) 25%,
+    color-mix(in srgb, var(--sand) 45%, transparent) 37%,
+    var(--stone-deep, #E7EAE5) 63%
+  );
+  background-size: 400% 100%;
+  animation: skel-slide 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+@keyframes skel-slide {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+.skel--line   { height: 0.85rem; margin-bottom: 0.55rem; }
+.skel--title  { height: 1.3rem; width: 45%; margin-bottom: 1rem; }
+.skel--short  { width: 60%; }
+.skel--photo  { aspect-ratio: 1 / 1; width: 100%; border-radius: 10px; }
+.skel--chip   { height: 2.2rem; width: 6rem; display: inline-block; margin-inline-end: 0.5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}
+
+/* ---- candidate photo with a reserved box ----
+   width and height are set on the element so the browser reserves the space
+   before the file arrives; without this the ballot reflows as each photo loads. */
+.cphoto {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--stone-deep, #E7EAE5);
+  display: block;
+}
+
+.cphoto[data-loading="1"] { filter: blur(6px); transform: scale(1.02); }
+.cphoto { transition: filter 0.3s ease, transform 0.3s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cphoto { transition: none; }
+}
+
+.cphoto--none {
+  display: grid;
+  place-items: center;
+  font-family: "Reem Kufi", system-ui, sans-serif;
+  font-size: 2.4rem;
+  color: var(--brass);
+  border: 1px solid var(--sand);
+}
+
+/* ---- candidacy status banner ---- */
+.cstatus { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+
+
+/* A field the member cannot edit, shown so they can confirm what will be used. */
+.readonly-value {
+  padding: 0.65rem 0.8rem;
+  border: 1px dashed var(--sand);
+  border-radius: 8px;
+  background: var(--stone-deep, #E7EAE5);
+  font-weight: 600;
+}
+
+
+/* ---- toggle rows and secondary tabs ---- */
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
+
+.switch input { width: 1.1rem; height: 1.1rem; accent-color: var(--pine); }
+
+.tabs--sub { border: 0; gap: 0.35rem; }
+.tabs--sub .tab { font-size: 0.85rem; padding: 0.4rem 0.8rem; }

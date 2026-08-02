@@ -42,6 +42,10 @@ func (s *Store) SetVotingStatus(status, actor string) error {
 
 // validateVotingSetup blocks opening a vote that members could not complete.
 func (s *Store) validateVotingSetup() error {
+	// The ballot must be settled before anyone votes on it.
+	if s.CandidacyGate() == GateOpen {
+		return errors.New("يجب إغلاق باب الترشح قبل بدء التصويت")
+	}
 	if s.VotingMode() == "single" {
 		ps, err := s.Participants(0, false)
 		if err != nil {
@@ -201,7 +205,8 @@ func (s *Store) Participants(roleID int64, withVotes bool) ([]Participant, error
 		Err() error
 	}
 	var err error
-	base := `SELECT p.id, COALESCE(p.role_id,0), p.name, p.description, p.photo, p.sort_order,
+	base := `SELECT p.id, COALESCE(p.role_id,0), p.name, p.description, p.photo, p.thumb,
+	         p.candidacy_id, p.sort_order,
 	         (SELECT COUNT(*) FROM votes v WHERE v.participant_id = p.id)
 	         FROM participants p `
 	if roleID > 0 {
@@ -218,7 +223,8 @@ func (s *Store) Participants(roleID int64, withVotes bool) ([]Participant, error
 	for rows.Next() {
 		var p Participant
 		var votes int
-		if err := rows.Scan(&p.ID, &p.RoleID, &p.Name, &p.Description, &p.Photo, &p.SortOrder, &votes); err != nil {
+		if err := rows.Scan(&p.ID, &p.RoleID, &p.Name, &p.Description, &p.Photo, &p.Thumb,
+			&p.CandidacyID, &p.SortOrder, &votes); err != nil {
 			return nil, err
 		}
 		if withVotes {
@@ -256,7 +262,8 @@ func (s *Store) AllParticipants(withVotes bool) ([]Participant, error) {
 	for rows.Next() {
 		var p Participant
 		var votes int
-		if err := rows.Scan(&p.ID, &p.RoleID, &p.Name, &p.Description, &p.Photo, &p.SortOrder, &votes); err != nil {
+		if err := rows.Scan(&p.ID, &p.RoleID, &p.Name, &p.Description, &p.Photo, &p.Thumb,
+			&p.CandidacyID, &p.SortOrder, &votes); err != nil {
 			return nil, err
 		}
 		if withVotes {
