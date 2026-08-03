@@ -42,6 +42,32 @@ When it finishes, go to **Images** and confirm `matam-alredha:1.0` is listed.
 
 ---
 
+## If your server already runs a Cloudflare connector
+
+Skip creating a new tunnel. Instead:
+
+1. Use **`docker-compose.portainer-existing-tunnel.yml`** as the stack file. It
+   omits the `cloudflared` service and publishes the app on host port 8080.
+2. Leave `CLOUDFLARE_TUNNEL_TOKEN` out of the environment variables entirely.
+3. In Cloudflare, open your **existing** tunnel → **Public Hostnames** → **Add a
+   public hostname**, with subdomain `matam-alredha`, domain
+   `malkiyaclub.online`, type `HTTP`, and the URL pointing at this server:
+
+   | How cloudflared runs | URL to use |
+   |---|---|
+   | As a container or TrueNAS app | `http://YOUR-SERVER-LAN-IP:8080` |
+   | Directly on the host OS | `http://localhost:8080` |
+
+   The LAN IP form works in both cases, so use that if unsure.
+
+If port 8080 is already taken on your server, change only the left-hand number
+in the stack's `ports:` line — for example `"8095:8080"` — and point the
+Cloudflare hostname at that port instead.
+
+Then continue from Step 3 below.
+
+---
+
 ## Step 2 — Create the Cloudflare tunnel
 
 1. Open [dash.cloudflare.com](https://dash.cloudflare.com) and select

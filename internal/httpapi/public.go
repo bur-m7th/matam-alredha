@@ -34,6 +34,33 @@ func (s *Server) registrationOpen() (bool, time.Time, bool) {
 	return true, closeAt, hasSchedule
 }
 
+// landingPage decides what a visitor with no session sees at the site root:
+// the registration form while applications are being accepted, or the sign-in
+// form once that window is closed. This is a server-side decision so a member
+// can never load the registration page's markup, even for a moment, while
+// registration is shut — the closed state in register.js is a second layer
+// for the case where the window closes mid-visit, not the primary guard.
+func (s *Server) landingPage(w http.ResponseWriter, r *http.Request) {
+	open, _, _ := s.registrationOpen()
+	if open {
+		s.page("register.html")(w, r)
+		return
+	}
+	s.page("login.html")(w, r)
+}
+
+// registerPage guards direct navigation to /register the same way: closed
+// registration redirects straight to the sign-in page rather than rendering
+// the form and relying on client-side script to hide it.
+func (s *Server) registerPage(w http.ResponseWriter, r *http.Request) {
+	open, _, _ := s.registrationOpen()
+	if !open {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+	s.page("register.html")(w, r)
+}
+
 func arabicDateTime(t time.Time) string {
 	months := []string{"يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
 		"يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"}

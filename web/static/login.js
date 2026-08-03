@@ -14,8 +14,11 @@ dob.min = "1900-01-01";
 
 paintChrome().then((cfg) => {
   if (cfg && cfg.registration_open === false) {
-    $("#registerLink").setAttribute("aria-disabled", "true");
-    $("#registerHint").textContent = cfg.closed_message || "باب التسجيل مغلق حالياً.";
+    // Registration is closed at the server too, so there is nothing useful
+    // this link can lead to; remove the whole invitation rather than leave a
+    // dead end.
+    $("#registerLink").remove();
+    $("#registerHint").textContent = cfg.closed_message || "التسجيل مغلق حالياً.";
   }
 });
 

@@ -8,6 +8,10 @@ let definition = null;
 
 paintChrome();
 
+// This can now be the site's landing page, so a member who is already signed
+// in should never be shown a blank registration form.
+api("/api/member/me").then(() => { window.location.replace("/member"); }).catch(() => {});
+
 async function load() {
   try {
     definition = await api("/api/public/form");

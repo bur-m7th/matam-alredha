@@ -98,9 +98,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	m := s.mux
 
-	// Pages
-	m.HandleFunc("GET /{$}", s.page("login.html"))
-	m.HandleFunc("GET /register", s.page("register.html"))
+	// Pages.
+	//
+	// The root address is the first thing a member ever sees, and it should
+	// show what they can actually do: apply, while applications are being
+	// taken, or sign in once that window has closed. "/login" is a fixed
+	// address for the sign-in form regardless of that state, since a member
+	// who already has an account should always be able to reach it directly.
+	m.HandleFunc("GET /{$}", s.landingPage)
+	m.HandleFunc("GET /login", s.page("login.html"))
+	m.HandleFunc("GET /register", s.registerPage)
 	m.HandleFunc("GET /submitted", s.page("submitted.html"))
 	m.HandleFunc("GET /member", s.page("member.html"))
 	m.HandleFunc("GET /vote", s.page("vote.html"))
@@ -178,6 +185,7 @@ func (s *Server) page(name string) http.HandlerFunc {
 var reservedPaths = map[string]bool{
 	"register": true, "submitted": true, "member": true, "vote": true,
 	"static": true, "uploads": true, "api": true, "healthz": true, "robots.txt": true,
+	"login": true,
 }
 
 // sanitizePath reduces an operator-supplied value to one safe URL segment.

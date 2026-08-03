@@ -1,0 +1,57 @@
+# Stack file for a server that ALREADY runs a Cloudflare connector.
+#
+# This variant leaves the tunnel out entirely and publishes the application on
+# a host port instead, so your existing cloudflared can reach it.
+#
+# In the Cloudflare dashboard, add a Public Hostname to your existing tunnel
+# pointing at this server on port 8080 — see DEPLOY.md for which address to
+# use, since it depends on how your connector is running.
+
+services:
+  matam:
+    image: matam-alredha:1.0
+    container_name: matam-alredha
+    restart: unless-stopped
+
+    # Published so the existing connector can reach it. If your cloudflared runs
+    # on the host itself you may narrow this to "127.0.0.1:8080:8080"; if it
+    # runs in its own container, leave it as is so the Docker bridge can route.
+    ports:
+      - "8080:8080"
+
+    environment:
+      DATA_DIR: /data
+      LISTEN_ADDR: ":8080"
+      TZ: Asia/Bahrain
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "true"
+
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ELECTIONS_USERNAME: ${ELECTIONS_USERNAME}
+      ELECTIONS_PASSWORD: ${ELECTIONS_PASSWORD}
+
+      ADMIN_PATH: ${ADMIN_PATH}
+      ELECTIONS_PATH: ${ELECTIONS_PATH}
+
+      ADMIN_PASSWORD_RESET: "false"
+      ELECTIONS_PASSWORD_RESET: "false"
+
+      MAX_UPLOAD_MB: "5"
+      REGISTER_LIMIT_PER_HOUR: "40"
+
+    volumes:
+      - matam-data:/data
+
+    healthcheck:
+      test: ["CMD", "/app/matam", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  matam-data:
